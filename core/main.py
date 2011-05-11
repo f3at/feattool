@@ -19,12 +19,14 @@ class Sim(log.FluLogKeeper, log.Logger):
 
         #Run the GUI mainloop
         import gui
+        # FIXME: Check if this means that this constructor never exits
         gui.mainloop()
 
     def _init(self):
 
         #load driver
         self.driver = driver.GuiDriver()
+        self.driver.initiate()
 
         #Setup GUI
         self.gui = None
