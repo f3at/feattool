@@ -1,52 +1,24 @@
-import os
-import sys
+from zope.interface import implements
 
 from feat.common import log
 
-from core import driver
+from feattool.gui import main
+
+from feattool.core import simulation
+from feattool.interfaces import *
 
 
-class Sim(log.FluLogKeeper, log.Logger):
-
-    _sim = None
+class Main(log.FluLogKeeper, log.Logger):
+    implements(IMainModel)
 
     def __init__(self):
         log.FluLogKeeper.__init__(self)
         log.Logger.__init__(self, self)
-        self.setup_logging()
-
-        self._init()
-
-        #Run the GUI mainloop
-        import gui
-        # FIXME: Check if this means that this constructor never exits
-        gui.mainloop()
-
-    def _init(self):
-
-        #load driver
-        self.driver = driver.GuiDriver()
-        self.driver.initiate()
 
         #Setup GUI
-        self.gui = None
-        import gui
-        self.gui = gui.Main(self)
-        self.gui.main.window.show_all()
+        self.controller = main.Controller(self)
 
-        Sim._sim = self
+    ### IMainModel ###
 
-    def quit(self):
-        logging.info('Shuting down...')
-        if self.gui:
-            self.gui.quit()
-
-    def setup_logging(self):
-        log.FluLogKeeper.init()
-        log.FluLogKeeper.set_debug("*:5")
-
-
-def sim():
-    if not Sim._sim:
-        raise AttributeError(_('Simulation is not yet finished loading'))
-    return Sim._sim
+    def finished(self):
+        self.controller.show()

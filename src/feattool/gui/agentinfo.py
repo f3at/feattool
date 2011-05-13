@@ -1,9 +1,9 @@
 import gtk
 
 from feat.agents.base import agent
-
-from core import guistate, settings
 from feat.common import log
+
+from feattool.core import guistate, settings
 
 
 class AgentInfo(object):

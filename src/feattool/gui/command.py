@@ -1,12 +1,12 @@
-import gtk
+from feat.common.text_helper import format_block
 
-from core import history
-from gui.dlg import command_history
+from feattool.core import history
+from feattool.gui.dlg import command_history
 
 
 class Command(object):
     """
-        The command panel
+    The command panel
     """
 
     def __init__(self, window, builder, driver):
@@ -15,10 +15,11 @@ class Command(object):
 
         self.editor = self.builder.get_object('command_editor')
         textbuffer = self.editor.get_buffer()
-        textbuffer.set_text("""agency = spawn_agency()
-host_desc = descriptor_factory('host_agent')
-agency.start_agent(host_desc)
-""")
+        textbuffer.set_text(format_block("""
+        agency = spawn_agency()
+        host_desc = descriptor_factory('host_agent')
+        agency.start_agent(host_desc)
+        """))
 
         textbuffer.connect('changed', self.on_text_changed)
 

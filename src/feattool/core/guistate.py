@@ -4,6 +4,7 @@ from twisted.python import components
 from feat.agents.base import resource, agent, partners, descriptor
 from feat.agencies import agency, protocols
 from feat.common import enum
+from feat.common.container import ExpDict
 
 
 class IGuiState(Interface):
@@ -63,7 +64,7 @@ class ResourcesGuiState(GuiState):
     def iter_elements(self):
         state = self.obj._get_state()
         yield (None, ('id_autoincrement', state.id_autoincrement))
-        yield 'allocations', state.allocations
+        yield 'modifications', state.modifications
         yield 'totals', state.totals
 
 
@@ -138,7 +139,7 @@ class DictGui(GuiState):
         GuiState.__init__(self, dic)
 
     def iter_elements(self):
-        for item in self.obj.items():
+        for item in self.obj.iteritems():
             yield (None, (item))
 
 
@@ -182,6 +183,10 @@ components.registerAdapter(
         dict,
         IGuiState)
 
+components.registerAdapter(
+        DictGui,
+        ExpDict,
+        IGuiState)
 
 components.registerAdapter(
         ListGui,

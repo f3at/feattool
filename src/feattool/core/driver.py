@@ -1,13 +1,11 @@
 import glib
 import pydot
-from twisted.internet import defer
 
 from feat.simulation import driver
-from feat.common import manhole
+from feat.common import manhole, defer
 
-from feat.agents.base.agent import registry
 from feat import everything
-
+from feat.agents.base.agent import registry
 from feat.agents.base import recipient
 
 
