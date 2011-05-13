@@ -2,7 +2,7 @@ from zope.interface import implements, Interface
 from twisted.python import components
 
 from feat.agents.base import resource, agent, partners, descriptor
-from feat.agencies import agency
+from feat.agencies import agency, protocols
 from feat.common import enum
 
 
@@ -173,7 +173,7 @@ components.registerAdapter(
 
 components.registerAdapter(
         InterestGuiState,
-        agency.Interest,
+        protocols.BaseInterest,
         IGuiState)
 
 
