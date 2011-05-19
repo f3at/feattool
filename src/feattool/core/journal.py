@@ -132,6 +132,7 @@ class JournalComponent(log.LogProxy, log.Logger):
             str, str, str, str, str, gobject.TYPE_PYOBJECT,
             gobject.TYPE_PYOBJECT, gobject.TYPE_PYOBJECT,
             gobject.TYPE_PYOBJECT, str)
+
         self.agents_store = gtk.ListStore(str, bool, int,
                                           gobject.TYPE_PYOBJECT)
         self.details_store = EntryDetails()
@@ -144,7 +145,6 @@ class JournalComponent(log.LogProxy, log.Logger):
         self.controller = journal.Controller(
             self, self.je_store, self.agents_store,
             self.details_store, self.source_buffer)
-
 
     def finished(self):
         '''

@@ -77,13 +77,32 @@
                   </packing>
                 </child>
                 <child>
-                  <object class="GtkScrolledWindow" id="journal_entries">
+                  <object class="GtkVBox" id="vbox2">
                     <property name="visible">True</property>
-                    <property name="can_focus">True</property>
-                    <property name="hscrollbar_policy">automatic</property>
-                    <property name="vscrollbar_policy">automatic</property>
                     <child>
-                      <placeholder/>
+                      <object class="GtkEntry" id="je_search">
+                        <property name="visible">True</property>
+                        <property name="can_focus">True</property>
+                        <property name="invisible_char">&#x25CF;</property>
+                      </object>
+                      <packing>
+                        <property name="expand">False</property>
+                        <property name="position">0</property>
+                      </packing>
+                    </child>
+                    <child>
+                      <object class="GtkScrolledWindow" id="journal_entries">
+                        <property name="visible">True</property>
+                        <property name="can_focus">True</property>
+                        <property name="hscrollbar_policy">automatic</property>
+                        <property name="vscrollbar_policy">automatic</property>
+                        <child>
+                          <placeholder/>
+                        </child>
+                      </object>
+                      <packing>
+                        <property name="position">1</property>
+                      </packing>
                     </child>
                   </object>
                   <packing>
@@ -101,7 +120,7 @@
               <object class="GtkVPaned" id="vpaned2">
                 <property name="visible">True</property>
                 <property name="can_focus">True</property>
-                <property name="position">280</property>
+                <property name="position">400</property>
                 <property name="position_set">True</property>
                 <child>
                   <object class="GtkScrolledWindow" id="entry_details">

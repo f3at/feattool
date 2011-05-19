@@ -47,6 +47,7 @@ class Controller(log.Logger, log.LogProxy):
     def show_entry_details(self, iter):
         self.model.parse_details_for(iter)
 
+
     ### called by model ###
 
 
@@ -113,7 +114,9 @@ class MainWindow(log.Logger):
                            lambda _, iter: self.controller.show_journal(iter))
 
     def _setup_journal_entries(self):
-        journal_entries = JournalEntries(model=self.journal_entries_store)
+        search = self.builder.get_object('je_search')
+        journal_entries = JournalEntries(model=self.journal_entries_store,
+                                         search=search)
         journal_entries.show_all()
         self.builder.get_object('journal_entries').add(journal_entries)
 
@@ -143,7 +146,9 @@ class AgentList(gtk.TreeView):
 
     def __init__(self, model=None):
         gtk.TreeView.__init__(self, model)
+        self._setup_columns()
 
+    def _setup_columns(self):
         renderer = gtk.CellRendererText()
         toggle_renderer = gtk.CellRendererToggle()
         toggle_renderer.connect('toggled', self._agent_toggle_toggled)
@@ -186,24 +191,32 @@ class JournalEntries(gtk.TreeView):
     __gsignals__ = {"entry-marked": (gobject.SIGNAL_RUN_LAST,\
                                      gobject.TYPE_NONE, [gtk.TreeIter])}
 
-    def __init__(self, model=None):
-        gtk.TreeView.__init__(self, model)
+    def __init__(self, model=None, search=None):
+        model_f = model.filter_new()
+        model_f.set_visible_func(self._je_visible)
 
+        gtk.TreeView.__init__(self, model_f)
         self._selected_fiber_id = None
-        text_renderer = gtk.CellRendererText()
 
+        self._search = search
+        self._search.connect('changed', lambda *_: model_f.refilter())
+
+        self._setup_columns()
+        self.connect('cursor_changed', self._journal_cursor_changed)
+
+    def _setup_columns(self):
+        text_renderer = gtk.CellRendererText()
         col = gtk.TreeViewColumn('Journal entry')
         col.pack_start(text_renderer, True)
         col.set_cell_data_func(text_renderer, self._render_journal_entry)
         self.append_column(col)
 
-        self.connect('cursor_changed', self._journal_cursor_changed)
-
     def _journal_cursor_changed(self, treeview):
         path, focus = treeview.get_cursor()
         model = self.get_model()
         iter = model.get_iter(path)
-        self.emit('entry-marked', iter)
+        child_iter = model.convert_iter_to_child_iter(iter)
+        self.emit('entry-marked', child_iter)
         value = model.get_value(iter, 3)
         self._selected_fiber_id = value
         self.queue_draw()
@@ -220,6 +233,11 @@ class JournalEntries(gtk.TreeView):
             weight = 400
 
         cell.set_property('weight', weight)
+
+    def _je_visible(self, model, iter):
+        value = model.get_value(iter, 2)
+        key = self._search.get_text()
+        return value and key in value
 
 
 class EntryDetails(gtk.TreeView):
