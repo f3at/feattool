@@ -80,6 +80,7 @@ class MainWindow(log.Logger):
         self._setup_window()
         self._setup_menu()
         self._setup_lists()
+        self._setup_buttons()
 
     def _setup_window(self):
         self.window = self.builder.get_object('journal_viewer')
@@ -99,6 +100,11 @@ class MainWindow(log.Logger):
         self._setup_journal_entries()
         self._setup_entry_details()
         self._setup_source_preview()
+
+    def _setup_buttons(self):
+        clear = self.builder.get_object('clear_search')
+        search = self.builder.get_object('je_search')
+        clear.connect('clicked', lambda *_: search.set_text(''))
 
     def _setup_source_preview(self):
         code_view = gtksourceview2.View(self.code_preview)
