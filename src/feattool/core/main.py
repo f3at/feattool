@@ -4,7 +4,7 @@ from feat.common import log
 
 from feattool.gui import main
 
-from feattool.core import simulation
+from feattool.core import simulation, journal
 from feattool.interfaces import *
 
 
