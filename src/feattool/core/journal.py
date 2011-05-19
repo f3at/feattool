@@ -2,12 +2,14 @@ import pprint
 import gobject
 import os
 import gtk
+import inspect
 
 from zope.interface import classProvides
 
 from feat import everything
 from feat.common import log, defer
 from feat.agencies import journaler, replay
+from feat.agents.base.replay import resolve_function
 
 from feattool.core import component
 from feattool.gui import journal
@@ -87,6 +89,7 @@ class JournalComponent(log.LogProxy, log.Logger):
         '''
         @param iter: TreeIter point to the row in self.je_store to be displayed
         '''
+
         def append_row(parent, key, value):
             row = self.details_store.append(parent, (key, value, ))
             return row
@@ -102,21 +105,60 @@ class JournalComponent(log.LogProxy, log.Logger):
             for key, value in ddict.iteritems():
                 append_row(parent, key, repr(value))
 
-        self.details_store.clear()
-        append_row(None, 'function_id', get_value(2))
+        def append_function_call(parent, function, args, kwargs, result):
+            args = list(args)
+            argspec = inspect.getargspec(function)
+            if argspec.args[0] == 'self':
+                argspec.args.pop(0)
+            if argspec.args[0] == 'state':
+                argspec.args.pop(0)
+            display_args = list(argspec.args)
+            if argspec.varargs:
+                display_args += ['*%s' % (argspec.varargs)]
+            if argspec.keywords:
+                display_args += ['**%s' % (argspec.keywords)]
 
-        args = get_value(5)
-        if args:
-            row = append_row(None, 'arguments', None)
-            render_list(row, args)
-
-        kwargs = get_value(6)
-        if kwargs:
-            row = append_row(None, 'keywords', None)
+            text = "%s(" % (function.__name__, )
+            text += ', '.join(display_args)
+            text += ')'
+            row = append_row(parent, 'function', text)
+            for arg in argspec.args:
+                value = None
+                try:
+                    value = args.pop(0)
+                except IndexError:
+                    value = argspec.defaults and argspec.defaults.pop(0)
+                append_row(row, arg, repr(value))
             render_dict(row, kwargs)
 
+        self.details_store.clear()
+
+        function_id = get_value(2)
+        try:
+            fun_id, function = resolve_function(function_id, None)
+        except AttributeError:
+            append_row(None, 'function',
+                       "This entry is special, it doesn't have python code.")
+        else:
+            if hasattr(function, 'original_func'):
+                function = function.original_func
+            args = get_value(5)
+            kwargs = get_value(6)
+            result = get_value(7)
+            append_function_call(None, function, args, kwargs, result)
+
+        # args = get_value(5)
+        # if args:
+        #     row = append_row(None, 'arguments', None)
+        #     render_list(row, args)
+
+        # kwargs = get_value(6)
+        # if kwargs:
+        #     row = append_row(None, 'keywords', None)
+        #     render_dict(row, kwargs)
+
         append_row(None, 'fiber_depth', get_value(4))
-        append_row(None, 'result', pprint.pformat(get_value(8)))
+        # append_row(None, 'result', pprint.pformat(get_value(8)))
 
         side_effects = get_value(7)
         if side_effects:
@@ -137,7 +179,8 @@ class JournalComponent(log.LogProxy, log.Logger):
     def _parse_history(self, history, agent_id):
         self.je_store.clear()
         self.info('Reading %r entries.', len(history))
-        rep = replay.Replay(iter(history), agent_id)
+        rep = replay.Replay(iter(history), agent_id,
+                            inject_dummy_externals=True)
         for entry in rep:
             row = self.je_store.append()
             self.je_store.set(row, 0, entry.agent_id)
@@ -158,15 +201,3 @@ class JournalComponent(log.LogProxy, log.Logger):
         sfx = list(journal_entry._restore_side_effect(row))
         sfx[4] = rep.unserializer.convert(sfx[4])
         return sfx
-
-
-
-
-
-
-
-
-
-
-
-
