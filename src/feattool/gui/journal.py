@@ -1,3 +1,4 @@
+import gtksourceview2
 import gobject
 import gtk
 
@@ -11,7 +12,8 @@ class Controller(log.Logger, log.LogProxy):
     This is the controller of journal viewer component.
     """
 
-    def __init__(self, model, journal_entries, agent_list, entry_details):
+    def __init__(self, model, journal_entries, agent_list,
+                 entry_details, code_preview):
         log.Logger.__init__(self, model)
         log.LogProxy.__init__(self, model)
 
@@ -21,7 +23,8 @@ class Controller(log.Logger, log.LogProxy):
         self.builder.add_from_file(data.path('ui', 'journal-viewer.ui'))
 
         self.view = MainWindow(self, self.builder,
-                               journal_entries, agent_list, entry_details)
+                               journal_entries, agent_list,
+                               entry_details, code_preview)
         self.view.show()
 
     def quit(self):
@@ -62,7 +65,7 @@ class MainWindow(log.Logger):
     """
 
     def __init__(self, controller, builder, journal_entries_store,
-                 agents_store, entry_details):
+                 agents_store, entry_details, code_preview):
         log.Logger.__init__(self, controller)
 
         self.controller = controller
@@ -71,6 +74,7 @@ class MainWindow(log.Logger):
         self.journal_entries_store = journal_entries_store
         self.agents_store = agents_store
         self.entry_details = entry_details
+        self.code_preview = code_preview
 
         self._setup_window()
         self._setup_menu()
@@ -93,6 +97,12 @@ class MainWindow(log.Logger):
         self._setup_agent_list()
         self._setup_journal_entries()
         self._setup_entry_details()
+        self._setup_source_preview()
+
+    def _setup_source_preview(self):
+        code_view = gtksourceview2.View(self.code_preview)
+        code_view.show_all()
+        self.builder.get_object('code_preview').add(code_view)
 
     def _setup_agent_list(self):
         agent_list = AgentList(model=self.agents_store)
@@ -154,7 +164,7 @@ class AgentList(gtk.TreeView):
 
     def _agent_toggle_toggled(self, cell, path):
         model = self.get_model()
-        iter = model.get_iter((int(path),))
+        iter = model.get_iter((int(path), ))
         val = model.get_value(iter, 1)
 
         def set_false(model, path, iter):
@@ -229,4 +239,3 @@ class EntryDetails(gtk.TreeView):
     def _render_details(self, column, cell, model, iter, index):
         value = model.get_value(iter, index)
         cell.set_property('text', value)
-

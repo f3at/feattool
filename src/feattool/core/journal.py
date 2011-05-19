@@ -1,5 +1,6 @@
 import pprint
 import gobject
+import gtksourceview2
 import os
 import gtk
 import inspect
@@ -7,7 +8,7 @@ import inspect
 from zope.interface import classProvides
 
 from feat import everything
-from feat.common import log, defer
+from feat.common import log, defer, reflect
 from feat.agencies import journaler, replay
 from feat.agents.base.replay import resolve_function
 
@@ -15,6 +16,105 @@ from feattool.core import component
 from feattool.gui import journal
 
 from feattool.interfaces import *
+
+
+class EntryDetails(gtk.TreeStore):
+
+    def __init__(self):
+        gtk.TreeStore.__init__(self, str, str)
+
+        self.iter = None
+        self.model = None
+        self.function = None
+
+    def get_function(self):
+        return self.function
+
+    def parse(self, iter, model):
+        self.iter = iter
+        self.model = model
+
+        self.clear()
+        self.function = None
+
+        function_id = self._get_value(2)
+        try:
+            fun_id, function = resolve_function(function_id, None)
+        except AttributeError:
+            self._append_row(None, '',
+                       "This entry is special, it doesn't have python code.")
+        else:
+            if hasattr(function, 'original_func'):
+                function = function.original_func
+            args = self._get_value(5)
+            kwargs = self._get_value(6)
+            result = self._get_value(7)
+            self._append_function_call(None, function, args, kwargs, result)
+            self.function = function
+
+        side_effects = self._get_value(7)
+        if side_effects:
+            row = self._append_row(None, 'side_effects', None)
+            for sfx in side_effects:
+                fun_id, args, kwargs, _, result = sfx
+                try:
+                    function = reflect.named_function(fun_id)
+                except ValueError:
+
+                    def unknown_function(*unknown_mimicry):
+                        pass
+
+                    unknown_function.__name__ = fun_id
+                    function = unknown_function
+                self._append_function_call(row, function, args, kwargs, result)
+
+        self._append_row(None, 'fiber_depth', self._get_value(4))
+
+    def _append_row(self, parent, key, value):
+        row = self.append(parent, (key, value, ))
+        return row
+
+    def _get_value(self, index):
+        return self.model.get_value(self.iter, index)
+
+    def _render_list(self, parent, llist):
+        for value, index in zip(llist, range(len(llist))):
+            self._append_row(parent, index, repr(value))
+
+    def _render_dict(self, parent, ddict):
+        for key, value in ddict.iteritems():
+            self._append_row(parent, key, repr(value))
+
+    def _append_function_call(self, parent, function, args, kwargs, result):
+        args = list(args)
+        argspec = inspect.getargspec(function)
+        defaults = argspec.defaults and list(argspec.defaults)
+        if argspec.args and argspec.args[0] == 'self':
+            argspec.args.pop(0)
+        if argspec.args and argspec.args[0] == 'state':
+            argspec.args.pop(0)
+        display_args = list(argspec.args)
+        if argspec.varargs:
+            display_args += ['*%s' % (argspec.varargs)]
+        if argspec.keywords:
+            display_args += ['**%s' % (argspec.keywords)]
+
+        text = "%s(" % (function.__name__, )
+        text += ', '.join(display_args)
+        text += ')'
+        call_row = self._append_row(parent, 'call', text)
+        row = self._append_row(call_row, 'input', None)
+        for arg in argspec.args:
+            value = None
+            try:
+                value = args.pop(0)
+            except IndexError:
+                value = defaults and defaults.pop(0)
+            self._append_row(row, arg, repr(value))
+        if args:
+            self._render_list(row, args)
+        self._render_dict(row, kwargs)
+        self._append_row(call_row, 'output', pprint.pformat(result))
 
 
 @component.register
@@ -34,10 +134,17 @@ class JournalComponent(log.LogProxy, log.Logger):
             gobject.TYPE_PYOBJECT, str)
         self.agents_store = gtk.ListStore(str, bool, int,
                                           gobject.TYPE_PYOBJECT)
-        self.details_store = gtk.TreeStore(str, str)
+        self.details_store = EntryDetails()
+        self.source_buffer = gtksourceview2.Buffer()
+
+        manager = gtksourceview2.LanguageManager()
+        lang = manager.get_language('python')
+        self.source_buffer.set_language(lang)
 
         self.controller = journal.Controller(
-            self, self.je_store, self.agents_store, self.details_store)
+            self, self.je_store, self.agents_store,
+            self.details_store, self.source_buffer)
+
 
     def finished(self):
         '''
@@ -75,6 +182,8 @@ class JournalComponent(log.LogProxy, log.Logger):
         @param iter: TreeIter point to the row in self.agents_store
         to be displayed
         '''
+        self.details_store.clear()
+        self.source_buffer.set_text('')
         d = defer.succeed(None)
         if iter:
             history = self.agents_store.get_value(iter, 3)
@@ -90,85 +199,18 @@ class JournalComponent(log.LogProxy, log.Logger):
         @param iter: TreeIter point to the row in self.je_store to be displayed
         '''
 
-        def append_row(parent, key, value):
-            row = self.details_store.append(parent, (key, value, ))
-            return row
-
-        def get_value(index):
-            return self.je_store.get_value(iter, index)
-
-        def render_list(parent, llist):
-            for value, index in zip(llist, range(len(llist))):
-                append_row(parent, index, repr(value))
-
-        def render_dict(parent, ddict):
-            for key, value in ddict.iteritems():
-                append_row(parent, key, repr(value))
-
-        def append_function_call(parent, function, args, kwargs, result):
-            args = list(args)
-            argspec = inspect.getargspec(function)
-            if argspec.args[0] == 'self':
-                argspec.args.pop(0)
-            if argspec.args[0] == 'state':
-                argspec.args.pop(0)
-            display_args = list(argspec.args)
-            if argspec.varargs:
-                display_args += ['*%s' % (argspec.varargs)]
-            if argspec.keywords:
-                display_args += ['**%s' % (argspec.keywords)]
-
-            text = "%s(" % (function.__name__, )
-            text += ', '.join(display_args)
-            text += ')'
-            row = append_row(parent, 'function', text)
-            for arg in argspec.args:
-                value = None
-                try:
-                    value = args.pop(0)
-                except IndexError:
-                    value = argspec.defaults and argspec.defaults.pop(0)
-                append_row(row, arg, repr(value))
-            render_dict(row, kwargs)
-
-        self.details_store.clear()
-
-        function_id = get_value(2)
-        try:
-            fun_id, function = resolve_function(function_id, None)
-        except AttributeError:
-            append_row(None, 'function',
-                       "This entry is special, it doesn't have python code.")
-        else:
-            if hasattr(function, 'original_func'):
-                function = function.original_func
-            args = get_value(5)
-            kwargs = get_value(6)
-            result = get_value(7)
-            append_function_call(None, function, args, kwargs, result)
-
-        # args = get_value(5)
-        # if args:
-        #     row = append_row(None, 'arguments', None)
-        #     render_list(row, args)
-
-        # kwargs = get_value(6)
-        # if kwargs:
-        #     row = append_row(None, 'keywords', None)
-        #     render_dict(row, kwargs)
-
-        append_row(None, 'fiber_depth', get_value(4))
-        # append_row(None, 'result', pprint.pformat(get_value(8)))
-
-        side_effects = get_value(7)
-        if side_effects:
-            row = append_row(None, 'side_effects', None)
-            render_list(row, side_effects)
+        self.details_store.parse(iter, self.je_store)
+        func = self.details_store.get_function()
+        source = func and inspect.getsource(func) or ''
+        self.source_buffer.set_text(source)
 
     ### private ###
 
     def _got_histories(self, histories):
         self.agents_store.clear()
+        self.je_store.clear()
+        self.details_store.clear()
+        self.source_buffer.set_text('')
         for history in histories:
             row = self.agents_store.append()
             self.agents_store.set(row, 0, history.agent_id)
