@@ -47,9 +47,17 @@ class Controller(log.Logger, log.LogProxy):
     def show_entry_details(self, iter):
         self.model.parse_details_for(iter)
 
-
     ### called by model ###
 
+    def display_error(self, msg):
+        dialog = gtk.Dialog("Error", self.view.window,
+                            gtk.DIALOG_MODAL | gtk.DIALOG_DESTROY_WITH_PARENT,
+                            (gtk.STOCK_OK, gtk.RESPONSE_ACCEPT, ))
+        label = gtk.Label(msg)
+        label.set_padding(20, 20)
+        dialog.vbox.pack_start(label)
+        dialog.show_all()
+        dialog.connect('response', lambda *_: dialog.destroy())
 
     ### private ###
 

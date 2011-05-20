@@ -7,7 +7,7 @@ from feat.agencies import agency
 
 
 try:
-    from feat.simulation.simgui.core import driver
+    from feattool.core import driver
     SKIP_TEST = False
 except ImportError, e:
     SKIP_TEST = str(e)

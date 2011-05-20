@@ -86,7 +86,8 @@ class EntryDetails(gtk.TreeStore):
             self._append_row(parent, key, repr(value))
 
     def _append_function_call(self, parent, function, args, kwargs, result):
-        args = list(args)
+        args = args and list(args) or list()
+        kwargs = kwargs or dict()
         argspec = inspect.getargspec(function)
         defaults = argspec.defaults and list(argspec.defaults)
         if argspec.args and argspec.args[0] == 'self':
@@ -223,21 +224,27 @@ class JournalComponent(log.LogProxy, log.Logger):
         self.info('Reading %r entries.', len(history))
         rep = replay.Replay(iter(history), agent_id,
                             inject_dummy_externals=True)
-        for entry in rep:
-            row = self.je_store.append()
-            self.je_store.set(row, 0, entry.agent_id)
-            self.je_store.set(row, 1, str(entry.journal_id))
-            self.je_store.set(row, 2, entry.function_id)
-            self.je_store.set(row, 3, entry.fiber_id)
-            self.je_store.set(row, 4, entry.fiber_depth)
-            args, kwargs = entry.get_arguments()
-            self.je_store.set(row, 5, args)
-            self.je_store.set(row, 6, kwargs)
-            sfx = map(lambda row: self._parse_sfx(row, entry, rep),
-                      entry._side_effects)
-            self.je_store.set(row, 7, sfx)
-            self.je_store.set(row, 8, entry.result)
-            self.je_store.set(row, 9, entry._timestamp)
+        try:
+            for entry in rep:
+                row = self.je_store.append()
+                self.je_store.set(row, 0, entry.agent_id)
+                self.je_store.set(row, 1, str(entry.journal_id))
+                self.je_store.set(row, 2, entry.function_id)
+                self.je_store.set(row, 3, entry.fiber_id)
+                self.je_store.set(row, 4, entry.fiber_depth)
+                args, kwargs = entry.get_arguments()
+                self.je_store.set(row, 5, args)
+                self.je_store.set(row, 6, kwargs)
+                sfx = map(lambda row: self._parse_sfx(row, entry, rep),
+                          entry._side_effects)
+                self.je_store.set(row, 7, sfx)
+                self.je_store.set(row, 8, entry.result)
+                self.je_store.set(row, 9, entry._timestamp)
+        except TypeError as e:
+            self.je_store.clear()
+            msg = ("Journal import failed. \nProbably you are missing some "
+                   "module. \nError message: \n%s" % (str(e), ))
+            self.controller.display_error(msg)
 
     def _parse_sfx(self, row, journal_entry, rep):
         sfx = list(journal_entry._restore_side_effect(row))
