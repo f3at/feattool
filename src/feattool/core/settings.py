@@ -11,15 +11,20 @@ manager = None
 
 class SettingsManager(RawConfigParser):
 
-    def __init__(self):
+    def __init__(self, path=None):
         RawConfigParser.__init__(self)
 
-        config_home = glib.get_user_config_dir()
-        config_home = os.path.join(config_home, 'fltsim')
-        if not os.path.exists(config_home):
-            os.makedirs(config_home)
+        if path:
+            self.location = path
+        else:
+            config_home = glib.get_user_config_dir()
+            config_home = os.path.join(config_home, 'feattool')
+            if not os.path.exists(config_home):
+                os.makedirs(config_home)
+            self.location = os.path.join(config_home, 'settings.ini')
 
-        self.location = os.path.join(config_home, 'settings.ini')
+        if not os.path.exists(self.location):
+            open(self.location, "w").close()
 
         self._dirty = False
         self._saving = False
@@ -36,6 +41,11 @@ class SettingsManager(RawConfigParser):
         self.save()
         return True
 
+    def set(self, section, options, value):
+        r = RawConfigParser.set(self, section, options, value)
+        self._dirty = True
+        return r
+
     def set_option(self, option, value):
         splitvals = option.split('/')
         section, key = "/".join(splitvals[:-1]), splitvals[-1]
@@ -45,8 +55,6 @@ class SettingsManager(RawConfigParser):
         except NoSectionError:
             self.add_section(section)
             self.set(section, key, value)
-
-        self._dirty = True
 
     def get_option(self, option, default=None):
         splitvals = option.split('/')

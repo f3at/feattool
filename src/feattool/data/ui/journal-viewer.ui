@@ -27,6 +27,14 @@
                       </object>
                     </child>
                     <child>
+                      <object class="GtkImageMenuItem" id="imports_menuitem">
+                        <property name="label">Open import manager</property>
+                        <property name="visible">True</property>
+                        <property name="use_underline">True</property>
+                        <property name="use_stock">False</property>
+                      </object>
+                    </child>
+                    <child>
                       <object class="GtkSeparatorMenuItem" id="separatormenuitem1">
                         <property name="visible">True</property>
                       </object>

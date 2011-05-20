@@ -20,6 +20,7 @@ class Controller(log.Logger, log.LogProxy):
         self.model = model
 
         self.builder = gtk.Builder()
+        self.builder.add_from_file(data.path('ui', 'main.ui'))
         self.builder.add_from_file(data.path('ui', 'journal-viewer.ui'))
 
         self.view = MainWindow(self, self.builder,
@@ -40,6 +41,9 @@ class Controller(log.Logger, log.LogProxy):
                      gtk.STOCK_OPEN, gtk.RESPONSE_OK))
         filechooser.connect('response', self._choose_jourfile_response)
         filechooser.show_all()
+
+    def open_imports_manager(self):
+        self.model.main.show_imports_manager()
 
     def show_journal(self, iter):
         self.model.show_journal(iter)
@@ -102,6 +106,10 @@ class MainWindow(log.Logger):
 
         action = self.builder.get_object('quit_menuitem')
         action.connect('activate', self._on_destroy)
+
+        menu = self.builder.get_object('imports_menuitem')
+        menu.connect('activate',
+                     lambda _: self.controller.open_imports_manager())
 
     def _setup_lists(self):
         self._setup_agent_list()
@@ -166,7 +174,7 @@ class AgentList(gtk.TreeView):
         renderer = gtk.CellRendererText()
         toggle_renderer = gtk.CellRendererToggle()
         toggle_renderer.connect('toggled', self._agent_toggle_toggled)
-        col = gtk.TreeViewColumn('', active=0)
+        col = gtk.TreeViewColumn('')
         col.pack_start(toggle_renderer, False)
         col.add_attribute(toggle_renderer, 'active', 1)
         self.append_column(col)
