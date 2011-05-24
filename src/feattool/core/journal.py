@@ -226,6 +226,7 @@ class JournalComponent(log.LogProxy, log.Logger):
                             inject_dummy_externals=True)
         try:
             for entry in rep:
+                rep.reset()
                 row = self.je_store.append()
                 self.je_store.set(row, 0, entry.agent_id)
                 self.je_store.set(row, 1, str(entry.journal_id))
