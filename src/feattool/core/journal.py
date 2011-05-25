@@ -248,6 +248,6 @@ class JournalComponent(log.LogProxy, log.Logger):
             self.controller.display_error(msg)
 
     def _parse_sfx(self, row, journal_entry, rep):
-        sfx = list(journal_entry._restore_side_effect(row))
+        sfx = list(journal_entry.restore_side_effect(row, parse_args=True))
         sfx[4] = rep.unserializer.convert(sfx[4])
         return sfx
