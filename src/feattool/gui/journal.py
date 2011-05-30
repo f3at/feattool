@@ -1,3 +1,4 @@
+import pango
 import gtksourceview2
 import gobject
 import gtk
@@ -219,6 +220,7 @@ class JournalEntries(gtk.TreeView):
 
         gtk.TreeView.__init__(self, model_f)
         self._selected_fiber_id = None
+        self._selected_journal_id = None
 
         self._search = search
         self._search.connect('changed', lambda *_: model_f.refilter())
@@ -241,6 +243,8 @@ class JournalEntries(gtk.TreeView):
         self.emit('entry-marked', child_iter)
         value = model.get_value(iter, 3)
         self._selected_fiber_id = value
+        value = model.get_value(iter, 1)
+        self._selected_journal_id = value
         self.queue_draw()
 
     def _render_journal_entry(self, column, cell, model, iter):
@@ -248,13 +252,22 @@ class JournalEntries(gtk.TreeView):
         cell.set_property('text', value)
 
         cell.set_property('weight-set', True)
+        cell.set_property('underline-set', True)
+
         fiber_id = model.get_value(iter, 3)
         if self._selected_fiber_id and self._selected_fiber_id == fiber_id:
             weight = 700
         else:
             weight = 400
-
         cell.set_property('weight', weight)
+
+        journal_id = model.get_value(iter, 1)
+        if self._selected_journal_id and \
+               self._selected_journal_id == journal_id:
+            underline = pango.UNDERLINE_SINGLE
+        else:
+            underline = pango.UNDERLINE_NONE
+        cell.set_property('underline', underline)
 
     def _je_visible(self, model, iter):
         value = model.get_value(iter, 2)

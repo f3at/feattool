@@ -48,7 +48,7 @@ class EntryDetails(gtk.TreeStore):
                 function = function.original_func
             args = self._get_value(5)
             kwargs = self._get_value(6)
-            result = self._get_value(7)
+            result = self._get_value(8)
             self._append_function_call(None, function, args, kwargs, result)
             self.function = function
 
