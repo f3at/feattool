@@ -127,7 +127,8 @@ class JournalComponent(log.LogProxy, log.Logger):
         log.LogProxy.__init__(self, main)
 
         self.main = main
-        self._journaler = None
+        self._journaler = journaler.Journaler(self)
+        self._jourwriter = None
 
         self.je_store = gtk.ListStore(
             str, str, str, str, str, gobject.TYPE_PYOBJECT,
@@ -172,8 +173,10 @@ class JournalComponent(log.LogProxy, log.Logger):
     def load_jourfile(self, filename):
         if not os.path.exists(filename):
             raise RuntimeError("File %r doesn't exist!" % (filename, ))
-        self._journaler = journaler.Journaler(self, filename=filename)
-        d = self._journaler.initiate()
+        self._jourwriter = journaler.SqliteWriter(self, filename=filename)
+        self._journaler.close()
+        self._journaler.configure_with(self._jourwriter)
+        d = self._jourwriter.initiate()
         d.addCallback(lambda _: self._journaler.get_histories())
         d.addCallback(self._got_histories)
         return d
