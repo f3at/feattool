@@ -30,6 +30,43 @@ class EntryDetails(gtk.TreeStore):
     def get_function(self):
         return self.function
 
+    def _handle_special_entry(self):
+        fun_id = self._get_value(2)
+        handler_name = "_handle_%s" % (fun_id, )
+        method = getattr(self, handler_name, None)
+        if not callable(method):
+            self._append_row(None, '',
+                       "This entry is special, it doesn't have python code.")
+        else:
+            method()
+
+    def _handle_protocol_created(self):
+        params = self._get_value(5)
+        factory = params[0]
+        self._append_row(None, 'factory', factory)
+
+        if len(params) > 1:
+            args = params[2:]
+        else:
+            args = None
+        if args:
+            row = self._append_row(None, 'args', None)
+            self._render_list(row, args)
+
+        kwargs = self._get_value(6)
+        if kwargs:
+            row = self._append_row(None, 'keywords', None)
+            self._render_dict(row, kwargs)
+
+    def _handle_agent_created(self):
+        params = self._get_value(5)
+        factory = params[0]
+        self._append_row(None, 'factory', factory)
+
+    def _handle_protocol_deleted(self):
+        self._append_row(None, '', "This entry doesn't contain information "
+                         "on its own, it is usefull only during the replay.")
+
     def parse(self, iter, model):
         self.iter = iter
         self.model = model
@@ -41,8 +78,8 @@ class EntryDetails(gtk.TreeStore):
         try:
             fun_id, function = resolve_function(function_id, None)
         except AttributeError:
-            self._append_row(None, '',
-                       "This entry is special, it doesn't have python code.")
+            self._handle_special_entry()
+            return
         else:
             if hasattr(function, 'original_func'):
                 function = function.original_func
