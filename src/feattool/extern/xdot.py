@@ -477,7 +477,7 @@ class XDotAttrParser:
         self.parser = parser
         self.buf = self.unescape(buf)
         self.pos = 0
-        
+
         self.pen = Pen()
         self.shapes = []
 
@@ -573,7 +573,7 @@ class XDotAttrParser:
             b = b*s
             a = 1.0
             return r, g, b, a
-                
+
         sys.stderr.write("unknown color '%s'\n" % c)
         return None
 
@@ -645,7 +645,7 @@ class XDotAttrParser:
                 break
 
         return self.shapes
-    
+
     def transform(self, x, y):
         return self.parser.transform(x, y)
 
@@ -710,7 +710,7 @@ class ParseError(Exception):
 
     def __str__(self):
         return ':'.join([str(part) for part in (self.filename, self.line, self.col, self.msg) if part != None])
-        
+
 
 class Scanner:
     """Stateless scanner."""
@@ -849,9 +849,9 @@ class Parser:
     def match(self, type):
         if self.lookahead.type != type:
             raise ParseError(
-                msg = 'unexpected token %r' % self.lookahead.text, 
-                filename = self.lexer.filename, 
-                line = self.lookahead.line, 
+                msg = 'unexpected token %r' % self.lookahead.text,
+                filename = self.lexer.filename,
+                line = self.lookahead.line,
                 col = self.lookahead.col)
 
     def skip(self, type):
@@ -954,7 +954,7 @@ class DotLexer(Lexer):
             text = text.replace('\\\r\n', '')
             text = text.replace('\\\r', '')
             text = text.replace('\\\n', '')
-            
+
             text = text.replace('\\r', '\r')
             text = text.replace('\\n', '\n')
             text = text.replace('\\t', '\t')
@@ -1095,7 +1095,7 @@ class XDotParser(DotParser):
     def __init__(self, xdotcode):
         lexer = DotLexer(buf = xdotcode)
         DotParser.__init__(self, lexer)
-        
+
         self.nodes = []
         self.edges = []
         self.shapes = []
@@ -1124,7 +1124,7 @@ class XDotParser(DotParser):
             self.height = ymax - ymin
 
             self.top_graph = False
-        
+
         for attr in ("_draw_", "_ldraw_", "_hdraw_", "_tdraw_", "_hldraw_", "_tldraw_"):
             if attr in attrs:
                 parser = XDotAttrParser(self, attrs[attr])
@@ -1155,7 +1155,7 @@ class XDotParser(DotParser):
             pos = attrs['pos']
         except KeyError:
             return
-        
+
         points = self.parse_edge_pos(pos)
         shapes = []
         for attr in ("_draw_", "_ldraw_", "_hdraw_", "_tdraw_", "_hldraw_", "_tldraw_"):
@@ -1417,6 +1417,8 @@ class DotWidget(gtk.DrawingArea):
 
     filter = 'dot'
 
+    null_action = NullAction
+
     def __init__(self):
         gtk.DrawingArea.__init__(self)
 
@@ -1439,7 +1441,7 @@ class DotWidget(gtk.DrawingArea):
         self.zoom_ratio = 1.0
         self.zoom_to_fit_on_resize = False
         self.animation = NoAnimation(self)
-        self.drag_action = NullAction(self)
+        self.drag_action = self.null_action(self)
         self.presstime = None
         self.highlight = None
 
@@ -1619,7 +1621,7 @@ class DotWidget(gtk.DrawingArea):
             return True
         if event.keyval == gtk.keysyms.Escape:
             self.drag_action.abort()
-            self.drag_action = NullAction(self)
+            self.drag_action = self.null_action(self)
             return True
         if event.keyval == gtk.keysyms.r:
             self.reload()
@@ -1638,7 +1640,7 @@ class DotWidget(gtk.DrawingArea):
                 return ZoomAreaAction
             else:
                 return PanAction
-        return NullAction
+        return self.null_action
 
     def on_area_button_press(self, area, event):
         self.animation.stop()
@@ -1665,7 +1667,7 @@ class DotWidget(gtk.DrawingArea):
 
     def on_area_button_release(self, area, event):
         self.drag_action.on_button_release(event)
-        self.drag_action = NullAction(self)
+        self.drag_action = self.null_action(self)
         if event.button == 1 and self.is_click(event):
             x, y = int(event.x), int(event.y)
             url = self.get_url(x, y)
@@ -1892,24 +1894,24 @@ def main():
 
 # Apache-Style Software License for ColorBrewer software and ColorBrewer Color
 # Schemes, Version 1.1
-# 
+#
 # Copyright (c) 2002 Cynthia Brewer, Mark Harrower, and The Pennsylvania State
 # University. All rights reserved.
-# 
+#
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions are met:
-# 
+#
 #    1. Redistributions as source code must retain the above copyright notice,
-#    this list of conditions and the following disclaimer.  
+#    this list of conditions and the following disclaimer.
 #
 #    2. The end-user documentation included with the redistribution, if any,
 #    must include the following acknowledgment:
-# 
+#
 #       This product includes color specifications and designs developed by
 #       Cynthia Brewer (http://colorbrewer.org/).
-# 
+#
 #    Alternately, this acknowledgment may appear in the software itself, if and
-#    wherever such third-party acknowledgments normally appear.  
+#    wherever such third-party acknowledgments normally appear.
 #
 #    3. The name "ColorBrewer" must not be used to endorse or promote products
 #    derived from this software without prior written permission. For written
@@ -1917,8 +1919,8 @@ def main():
 #
 #    4. Products derived from this software may not be called "ColorBrewer",
 #    nor may "ColorBrewer" appear in their name, without prior written
-#    permission of Cynthia Brewer. 
-# 
+#    permission of Cynthia Brewer.
+#
 # THIS SOFTWARE IS PROVIDED "AS IS" AND ANY EXPRESSED OR IMPLIED WARRANTIES,
 # INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND
 # FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL CYNTHIA
@@ -1928,7 +1930,7 @@ def main():
 # LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
 # ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
-# SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE. 
+# SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 brewer_colors = {
     'accent3': [(127, 201, 127), (190, 174, 212), (253, 192, 134)],
     'accent4': [(127, 201, 127), (190, 174, 212), (253, 192, 134), (255, 255, 153)],

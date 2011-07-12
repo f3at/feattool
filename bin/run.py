@@ -10,7 +10,6 @@ from feattool.core.main import Main
 
 if __name__ == '__main__':
     log.FluLogKeeper.init()
-    log.FluLogKeeper.set_debug("*:5")
     Main()
 
     reactor.run()

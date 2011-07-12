@@ -168,10 +168,14 @@ class MainWindow(object):
         self.xdot.set_dotcode(dotcode)
 
     def _agent_clicked(self, agent_id):
+
+        def load(agent):
+            self.agent_info.load(agent.get_agent(), None)
+            self.agent_info.load(agent.get_descriptor(), None)
+
         self.agent_info.clear()
-        agent = self.driver.find_agent(agent_id)
-        self.agent_info.load(agent.get_agent(), None)
-        self.agent_info.load(agent.get_descriptor(), None)
+        d = self.driver.find_agent(agent_id)
+        d.addCallback(load)
 
     def _agent_show_menu(self, agent_id, event):
         agent_menu = menu.AgentMenu(agent_id)

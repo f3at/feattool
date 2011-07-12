@@ -1,3 +1,4 @@
+import time
 import pprint
 import gobject
 import gtksourceview2
@@ -13,9 +14,21 @@ from feat.agencies import journaler, replay
 from feat.agents.base.replay import resolve_function
 
 from feattool.core import component
-from feattool.gui import journal
+from feattool.gui import journal, hamsterball
 
 from feattool.interfaces import *
+
+
+class AgentsStore(gtk.ListStore):
+
+    def __init__(self):
+        gtk.ListStore.__init__(self, str, bool, int, gobject.TYPE_PYOBJECT,
+                               str)
+
+    def identify_agent(self, agent_id, agent_name):
+        for row in self:
+            if row[0] == agent_id:
+                row[4] = agent_name
 
 
 class EntryDetails(gtk.TreeStore):
@@ -67,12 +80,22 @@ class EntryDetails(gtk.TreeStore):
         self._append_row(None, '', "This entry doesn't contain information "
                          "on its own, it is usefull only during the replay.")
 
+    def _disabled_entry(self):
+        self._append_row(None, '', "This entry couldn't have been replayed, "
+                         "because we don't have an agent in hamsterball at "
+                         "this point. Entry needs to be preceded by "
+                         "'agent_created' or 'snapshot' entry.")
+
     def parse(self, iter, model):
         self.iter = iter
         self.model = model
 
         self.clear()
         self.function = None
+
+        if not self._get_value(11):
+            self._disabled_entry()
+            return
 
         function_id = self._get_value(2)
         try:
@@ -106,6 +129,9 @@ class EntryDetails(gtk.TreeStore):
                 self._append_function_call(row, function, args, kwargs, result)
 
         self._append_row(None, 'fiber_depth', self._get_value(4))
+        timestamp = time.strftime("%b %d %Y %H:%M:%S",
+                                  time.localtime(float(self._get_value(9))))
+        self._append_row(None, 'timestamp', timestamp)
 
     def _append_row(self, parent, key, value):
         row = self.append(parent, (key, value, ))
@@ -116,11 +142,11 @@ class EntryDetails(gtk.TreeStore):
 
     def _render_list(self, parent, llist):
         for value, index in zip(llist, range(len(llist))):
-            self._append_row(parent, index, repr(value))
+            self._append_row(parent, index, pprint.pformat(value))
 
     def _render_dict(self, parent, ddict):
         for key, value in ddict.iteritems():
-            self._append_row(parent, key, repr(value))
+            self._append_row(parent, key, pprint.pformat(value))
 
     def _append_function_call(self, parent, function, args, kwargs, result):
         args = args and list(args) or list()
@@ -164,18 +190,18 @@ class JournalComponent(log.LogProxy, log.Logger):
         log.LogProxy.__init__(self, main)
 
         self.main = main
-        self._journaler = journaler.Journaler(self)
         self._jourwriter = None
 
         self.je_store = gtk.ListStore(
             str, str, str, str, str, gobject.TYPE_PYOBJECT,
             gobject.TYPE_PYOBJECT, gobject.TYPE_PYOBJECT,
-            gobject.TYPE_PYOBJECT, str)
+            gobject.TYPE_PYOBJECT, str, gobject.TYPE_PYOBJECT,
+            bool)
 
-        self.agents_store = gtk.ListStore(str, bool, int,
-                                          gobject.TYPE_PYOBJECT)
+        self.agents_store = AgentsStore()
         self.details_store = EntryDetails()
         self.source_buffer = gtksourceview2.Buffer()
+        self.hamsterball = hamsterball.Model()
 
         manager = gtksourceview2.LanguageManager()
         lang = manager.get_language('python')
@@ -183,7 +209,8 @@ class JournalComponent(log.LogProxy, log.Logger):
 
         self.controller = journal.Controller(
             self, self.je_store, self.agents_store,
-            self.details_store, self.source_buffer)
+            self.details_store, self.source_buffer,
+            self.hamsterball)
 
     def finished(self):
         '''
@@ -211,10 +238,9 @@ class JournalComponent(log.LogProxy, log.Logger):
         if not os.path.exists(filename):
             raise RuntimeError("File %r doesn't exist!" % (filename, ))
         self._jourwriter = journaler.SqliteWriter(self, filename=filename)
-        self._journaler.close()
-        self._journaler.configure_with(self._jourwriter)
+
         d = self._jourwriter.initiate()
-        d.addCallback(lambda _: self._journaler.get_histories())
+        d.addCallback(lambda _: self._jourwriter.get_histories())
         d.addCallback(self._got_histories)
         return d
 
@@ -225,25 +251,37 @@ class JournalComponent(log.LogProxy, log.Logger):
         '''
         self.details_store.clear()
         self.source_buffer.set_text('')
-        d = defer.succeed(None)
         if iter:
             history = self.agents_store.get_value(iter, 3)
-            d.addCallback(defer.drop_result,
-                          self._journaler.get_entries, history)
-            d.addCallback(self._parse_history, history.agent_id)
-            return d
+            return self._show_history(history)
         else:
             self.je_store.clear()
+
+    def _show_history(self, history):
+        d = defer.succeed(None)
+        d.addCallback(defer.drop_result,
+                      self._jourwriter.get_entries, history,
+                      start_date=self.controller.get_start_date(),
+                      limit=self.controller.get_limit())
+        d.addCallback(self._parse_history, history.agent_id)
+        return d
 
     def parse_details_for(self, iter):
         '''
         @param iter: TreeIter point to the row in self.je_store to be displayed
         '''
+        self.hamsterball.clear()
 
         self.details_store.parse(iter, self.je_store)
         func = self.details_store.get_function()
         source = func and inspect.getsource(func) or ''
         self.source_buffer.set_text(source)
+
+        enabled = self.je_store[iter][11]
+        if enabled:
+            registry = self.je_store[iter][10]
+            self.hamsterball.append_iter(registry.iteritems())
+            self.controller.select_hamsterball(self.je_store[iter][1])
 
     ### private ###
 
@@ -258,6 +296,7 @@ class JournalComponent(log.LogProxy, log.Logger):
             self.agents_store.set(row, 1, False)
             self.agents_store.set(row, 2, history.instance_id)
             self.agents_store.set(row, 3, history)
+            self.agents_store.set(row, 4, 'unknown yet')
 
     def _parse_history(self, history, agent_id):
         self.je_store.clear()
@@ -266,7 +305,14 @@ class JournalComponent(log.LogProxy, log.Logger):
                             inject_dummy_externals=True)
         try:
             for entry in rep:
-                rep.reset()
+                try:
+                    entry.apply()
+                    enabled = True
+                except replay.ReplayError as e:
+                    msg = ("Encountered problem while replaying: \n %s" % e)
+                    self.controller.display_error(msg)
+                except replay.NoHamsterballError:
+                    enabled = False
                 row = self.je_store.append()
                 self.je_store.set(row, 0, entry.agent_id)
                 self.je_store.set(row, 1, str(entry.journal_id))
@@ -276,16 +322,24 @@ class JournalComponent(log.LogProxy, log.Logger):
                 args, kwargs = entry.get_arguments()
                 self.je_store.set(row, 5, args)
                 self.je_store.set(row, 6, kwargs)
-                sfx = map(lambda row: self._parse_sfx(row, entry, rep),
-                          entry._side_effects)
-                self.je_store.set(row, 7, sfx)
+                if enabled:
+                    sfx = map(lambda row: self._parse_sfx(row, entry, rep),
+                              entry._side_effects)
+                    self.je_store.set(row, 7, sfx)
                 self.je_store.set(row, 8, entry.result)
                 self.je_store.set(row, 9, entry._timestamp)
+                if enabled:
+                    self.je_store.set(row, 10, rep.snapshot_registry())
+                self.je_store.set(row, 11, enabled)
+            agent_type = rep.get_agent_type()
+            if agent_type:
+                self.agents_store.identify_agent(agent_id, agent_type)
         except TypeError as e:
             self.je_store.clear()
             msg = ("Journal import failed. \nProbably you are missing some "
                    "module. \nError message: \n%s" % (str(e), ))
             self.controller.display_error(msg)
+        self.controller.set_end_date(self.je_store[-1][9])
 
     def _parse_sfx(self, row, journal_entry, rep):
         sfx = list(journal_entry.restore_side_effect(row, parse_args=True))
