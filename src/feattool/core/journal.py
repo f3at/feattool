@@ -16,6 +16,8 @@ from feat.agents.base.replay import resolve_function
 from feattool.core import component
 from feattool.gui import journal, hamsterball
 
+from feat.interface.log import LogLevel
+
 from feattool.interfaces import *
 
 
@@ -29,6 +31,59 @@ class AgentsStore(gtk.ListStore):
         for row in self:
             if row[0] == agent_id:
                 row[4] = agent_name
+
+
+class LogsStore(gtk.ListStore):
+
+    def __init__(self):
+        # message, timestamp, file_path, level, category, log_name, line_num
+        gtk.ListStore.__init__(self, str, int, str, str, str, str, int)
+
+    def parse_result(self, result):
+        '''
+        result should be list of tuples with the format:
+        (message, timestamp, category, log_name, file_path, line_num, timestamp),
+        which is the result of SqliteWriter.get_log_entries.
+        '''
+        self.clear()
+        for row in result:
+            (message, level, category, log_name, file_path,
+             line_num, timestamp) = row
+
+            self.append((message, timestamp, file_path,
+                         LogLevel[level].name, category, log_name, line_num))
+
+
+class FiltersStore(gtk.ListStore):
+
+    def __init__(self):
+        # category, log_name, level
+        gtk.ListStore.__init__(self, str, str, gobject.TYPE_INT)
+
+    def get_filters_for_query(self):
+        # IMPLEMENT ME
+        resp = list()
+        for row in self:
+            if row[2] is None:
+                continue
+            row_res = dict(level=row[2])
+            if row[0] is not None:
+                row_res['category'] = row[0]
+            if row[1] is not None:
+                row_res['name'] = row[1]
+            resp.append(row_res)
+        return resp
+
+
+class LogCategoriesStore(gtk.ListStore):
+
+    def __init__(self):
+        gtk.ListStore.__init__(self, str, gtk.ListStore)
+
+    def get_log_names_for(self, category):
+        for row in self:
+            if row[0] == category:
+                return row[1]
 
 
 class EntryDetails(gtk.TreeStore):
@@ -132,6 +187,7 @@ class EntryDetails(gtk.TreeStore):
         timestamp = time.strftime("%b %d %Y %H:%M:%S",
                                   time.localtime(float(self._get_value(9))))
         self._append_row(None, 'timestamp', timestamp)
+        self._append_row(None, 'journal id', self._get_value(1))
 
     def _append_row(self, parent, key, value):
         row = self.append(parent, (key, value, ))
@@ -202,6 +258,9 @@ class JournalComponent(log.LogProxy, log.Logger):
         self.details_store = EntryDetails()
         self.source_buffer = gtksourceview2.Buffer()
         self.hamsterball = hamsterball.Model()
+        self.logs_store = LogsStore()
+        self.filters_store = FiltersStore()
+        self.log_categories = LogCategoriesStore()
 
         manager = gtksourceview2.LanguageManager()
         lang = manager.get_language('python')
@@ -210,7 +269,8 @@ class JournalComponent(log.LogProxy, log.Logger):
         self.controller = journal.Controller(
             self, self.je_store, self.agents_store,
             self.details_store, self.source_buffer,
-            self.hamsterball)
+            self.hamsterball, self.logs_store,
+            self.filters_store, self.log_categories)
 
     def finished(self):
         '''
@@ -242,7 +302,49 @@ class JournalComponent(log.LogProxy, log.Logger):
         d = self._jourwriter.initiate()
         d.addCallback(lambda _: self._jourwriter.get_histories())
         d.addCallback(self._got_histories)
+        d.addCallback(defer.drop_param, self._load_log_categories)
         return d
+
+    @defer.inlineCallbacks
+    def _load_log_categories(self):
+        jour = self.get_journaler()
+        if jour is None:
+            return
+        self.log_categories.clear()
+        self.log_categories.append()
+        categories = yield jour.get_log_categories()
+        for category in categories:
+            names = yield jour.get_log_names(category)
+            names_store = gtk.ListStore(str)
+            names_store.append()
+            for name in names:
+                names_store.append((name, ))
+                self.agents_store.identify_agent(name, category)
+            self.log_categories.append((category, names_store))
+        boundaries = yield jour.get_log_time_boundaries()
+        if boundaries:
+            start, end = boundaries
+            self.controller.log_start_date.set_current(start)
+            self.controller.set_start_date(start)
+            self.controller.log_end_date.set_current(end)
+
+    @defer.inlineCallbacks
+    def query_log(self):
+        jour = self.get_journaler()
+        start_date = self.controller.log_start_date.get_current()
+        end_date = self.controller.log_end_date.get_current()
+
+        if jour is None:
+            return
+        self.logs_store.clear()
+        logs = yield jour.get_log_entries(
+            start_date=start_date or None,
+            end_date=end_date or None,
+            filters=self.filters_store.get_filters_for_query())
+        self.logs_store.parse_result(logs)
+
+    def get_journaler(self):
+        return self._jourwriter
 
     def show_journal(self, iter):
         '''
@@ -283,13 +385,20 @@ class JournalComponent(log.LogProxy, log.Logger):
             self.hamsterball.append_iter(registry.iteritems())
             self.controller.select_hamsterball(self.je_store[iter][1])
 
-    ### private ###
-
-    def _got_histories(self, histories):
+    def clear_all(self):
         self.agents_store.clear()
         self.je_store.clear()
         self.details_store.clear()
         self.source_buffer.set_text('')
+        self.hamsterball.clear()
+        self.logs_store.clear()
+        self.filters_store.clear()
+        self.log_categories.clear()
+
+    ### private ###
+
+    def _got_histories(self, histories):
+        self.clear_all()
         for history in histories:
             row = self.agents_store.append()
             self.agents_store.set(row, 0, history.agent_id)
@@ -311,6 +420,7 @@ class JournalComponent(log.LogProxy, log.Logger):
                 except replay.ReplayError as e:
                     msg = ("Encountered problem while replaying: \n %s" % e)
                     self.controller.display_error(msg)
+                    enabled = False
                 except replay.NoHamsterballError:
                     enabled = False
                 row = self.je_store.append()

@@ -10,6 +10,8 @@ from feattool import data
 from feattool.gui import hamsterball, date
 from feattool.core import settings
 
+from feat.interface.log import LogLevel
+
 
 class Controller(log.Logger, log.LogProxy):
     """
@@ -17,7 +19,8 @@ class Controller(log.Logger, log.LogProxy):
     """
 
     def __init__(self, model, journal_entries, agent_list,
-                 entry_details, code_preview, hamsterball):
+                 entry_details, code_preview, hamsterball,
+                 logs_store, filters_store, log_categories):
         log.Logger.__init__(self, model)
         log.LogProxy.__init__(self, model)
 
@@ -29,10 +32,23 @@ class Controller(log.Logger, log.LogProxy):
 
         self.view = MainWindow(self, self.builder,
                                journal_entries, agent_list,
-                               entry_details, code_preview, hamsterball)
+                               entry_details, code_preview, hamsterball,
+                               logs_store, filters_store, log_categories)
         self.view.show()
 
-        self._start_date = None
+        self._start_date = date.DateField(
+            input=self.builder.get_object('start_date'),
+            button=self.builder.get_object('pick_date'),
+            set_cb=self.set_start_date,
+            parent=self.view.window)
+        self.log_start_date = date.DateField(
+            input=self.builder.get_object('log_start_date'),
+            button=self.builder.get_object('pick_log_start_date'),
+            parent=self.view.window)
+        self.log_end_date = date.DateField(
+            input=self.builder.get_object('log_end_date'),
+            button=self.builder.get_object('pick_log_end_date'),
+            parent=self.view.window)
         self._end_date = None
         self._limit = 0
 
@@ -70,15 +86,11 @@ class Controller(log.Logger, log.LogProxy):
             self.set_start_date(self._end_date)
 
     def set_start_date(self, epoc):
-        self._start_date = epoc
-        obj = self.builder.get_object('start_date')
-        timestamp = time.strftime("%b %d %Y %H:%M:%S",
-                                  time.localtime(float(self._start_date)))
-        obj.set_text(timestamp)
+        self._start_date.set_current(epoc)
         self.show_journal()
 
     def get_start_date(self):
-        return self._start_date or 0
+        return self._start_date.get_current()
 
     def set_end_date(self, epoc):
         self._end_date = epoc
@@ -87,14 +99,6 @@ class Controller(log.Logger, log.LogProxy):
                                   time.localtime(float(self._end_date)))
         obj.set_text(timestamp)
     ### called by view ###
-
-    def pick_date(self):
-        datepicker = date.DatePicker(
-            title="Pick start date",
-            parent=self.view.window,
-            current = self._start_date)
-        datepicker.connect('response', self._pick_date_response)
-        datepicker.show_all()
 
     def choose_jourfile(self):
         filechooser = gtk.FileChooserDialog(
@@ -114,6 +118,18 @@ class Controller(log.Logger, log.LogProxy):
 
     def show_entry_details(self, iter):
         self.model.parse_details_for(iter)
+
+    def add_filter(self):
+        self.view.filters_store.append((None, None, 5))
+
+    def remove_filter(self):
+        path, focus = self.view.filter_list.get_cursor()
+        if path:
+            iter = self.view.filters_store.get_iter(path)
+            del(self.view.filters_store[iter])
+
+    def query_log(self):
+        self.model.query_log()
 
     ### called by model ###
 
@@ -149,10 +165,6 @@ class Controller(log.Logger, log.LogProxy):
         if response_id == gtk.RESPONSE_OK:
             self.model.load_jourfile(selected[0])
 
-    def _pick_date_response(self, dialog, response):
-        self.set_start_date(response)
-        dialog.destroy()
-
 
 class MainWindow(log.Logger):
     """
@@ -160,7 +172,8 @@ class MainWindow(log.Logger):
     """
 
     def __init__(self, controller, builder, journal_entries_store,
-                 agents_store, entry_details, code_preview, hamsterball):
+                 agents_store, entry_details, code_preview, hamsterball,
+                 logs_store, filters_store, log_categories):
         log.Logger.__init__(self, controller)
 
         self.controller = controller
@@ -171,6 +184,9 @@ class MainWindow(log.Logger):
         self.entry_details = entry_details
         self.code_preview = code_preview
         self.hamsterball = hamsterball
+        self.logs_store = logs_store
+        self.filters_store = filters_store
+        self.log_categories = log_categories
 
         self._setup_window()
         self._setup_menu()
@@ -200,6 +216,8 @@ class MainWindow(log.Logger):
         self._setup_journal_entries()
         self._setup_entry_details()
         self._setup_source_preview()
+        self._setup_logs_list()
+        self._setup_filters_list()
         self._setup_hamsterball()
 
     def _setup_buttons(self):
@@ -209,8 +227,14 @@ class MainWindow(log.Logger):
         but = self.builder.get_object('set_start_end')
         but.connect('clicked', lambda *_: self.controller.set_start_end())
 
-        but = self.builder.get_object('pick_date')
-        but.connect('clicked', lambda *_: self.controller.pick_date())
+        but = self.builder.get_object('add_filter')
+        but.connect('clicked', lambda *_: self.controller.add_filter())
+
+        but = self.builder.get_object('remove_filter')
+        but.connect('clicked', lambda *_: self.controller.remove_filter())
+
+        but = self.builder.get_object('query_log')
+        but.connect('clicked', lambda *_: self.controller.query_log())
 
     def _setup_source_preview(self):
         code_view = gtksourceview2.View(self.code_preview)
@@ -249,6 +273,16 @@ class MainWindow(log.Logger):
         self.entry_details = EntryDetails(self.entry_details)
         self.entry_details.show_all()
         self.builder.get_object('entry_details').add(self.entry_details)
+
+    def _setup_logs_list(self):
+        self.log_list = LogList(self.logs_store)
+        self.log_list.show_all()
+        self.builder.get_object('logentries').add(self.log_list)
+
+    def _setup_filters_list(self):
+        self.filter_list = FilterList(self.filters_store, self.log_categories)
+        self.filter_list.show_all()
+        self.builder.get_object('categories').add(self.filter_list)
 
     def _journal_entry_marked(self, model, iter):
         self.controller.show_entry_details(iter)
@@ -318,6 +352,7 @@ class AgentList(gtk.TreeView):
     def _render_agent_entry(self, column, cell, model, iter, index):
         value = model.get_value(iter, index)
         cell.set_property('text', value)
+        cell.set_property('editable', True)
 
 
 class JournalEntries(gtk.TreeView):
@@ -370,6 +405,7 @@ class JournalEntries(gtk.TreeView):
 
         cell.set_property('weight-set', True)
         cell.set_property('underline-set', True)
+        cell.set_property('editable', True)
 
         fiber_id = model.get_value(iter, 3)
         if self._selected_fiber_id and self._selected_fiber_id == fiber_id:
@@ -423,5 +459,96 @@ class EntryDetails(gtk.TreeView):
     def _render_details(self, column, cell, model, iter, index):
         value = model.get_value(iter, index)
         cell.set_property('text', value)
+        cell.set_property('editable', True)
         cell.set_property('wrap-width', column.get_property('width'))
         cell.set_property('wrap-mode', pango.WRAP_WORD)
+
+
+class LogList(gtk.TreeView):
+
+    def __init__(self, model=None):
+        gtk.TreeView.__init__(self, model)
+
+        renderer = gtk.CellRendererText()
+        columns = [("Message", 600),
+                   ("Timestamp", 100),
+                   ("File path", 150),
+                   ("Level", 40, ),
+                   ("Log category", 100),
+                   ("Log name", 100)]
+        for (column, width), index in zip(columns, range(len(columns))):
+            col = gtk.TreeViewColumn(column)
+            col.set_resizable(True)
+            col.set_min_width(width)
+            col.pack_start(renderer, True)
+            col.set_cell_data_func(renderer, self._render, index)
+            self.append_column(col)
+
+    def _render(self, column, cell, model, iter, index):
+        if index in [0, 3, 4, 5]:
+            value = model.get_value(iter, index)
+        elif index == 2:
+            value = "%s:%s" % (model.get_value(iter, 2),
+                               model.get_value(iter, 6))
+        elif index == 1:
+            value = time.strftime(
+                "%H:%M:%S", time.localtime(float(model.get_value(iter, 1))))
+
+        cell.set_property('text', value)
+        cell.set_property('editable', True)
+        cell.set_property('wrap-width', column.get_property('width') - 10)
+        cell.set_property('wrap-mode', pango.WRAP_WORD)
+
+
+class FilterList(gtk.TreeView):
+
+    def __init__(self, model=None, categories=None):
+        gtk.TreeView.__init__(self, model)
+
+        self._level_model = gtk.ListStore(gobject.TYPE_STRING,
+                                          gobject.TYPE_INT)
+        self._categories_store = categories
+
+        for level in LogLevel:
+            self._level_model.append((level.name, int(level)))
+
+        columns = [("Category", 100),
+                   ("Name", 100),
+                   ("Level", 40, )]
+        for (column, width), index in zip(columns, range(len(columns))):
+            renderer = gtk.CellRendererCombo()
+            renderer.connect('changed', self._combo_changed, index)
+            col = gtk.TreeViewColumn(column)
+            col.set_resizable(True)
+            col.set_min_width(width)
+            col.pack_start(renderer, True)
+            col.set_cell_data_func(renderer, self._render, index)
+            self.append_column(col)
+
+    def _combo_changed(self, combo, path_string, new_iter, index):
+        model = self.get_model()
+        if index == 2:
+            value = self._level_model[new_iter][1]
+        if index in [0, 1]:
+            m = combo.get_property('model')
+            value = m[new_iter][0]
+        if model:
+            model[path_string][index] = value
+
+    def _render(self, column, cell, model, iter, index):
+        cell.set_property('editable', True)
+        cell.set_property('text-column', 0)
+        cell.set_property('has-entry', False)
+
+        if index == 2:
+            cell.set_property('model', self._level_model)
+            lvl = model.get_value(iter, 2)
+            cell.set_property('text', self._level_model[lvl - 1][0])
+        elif index == 0:
+            cell.set_property('model', self._categories_store)
+            cell.set_property('text', model.get_value(iter, 0))
+        elif index == 1:
+            cat = model.get_value(iter, 0)
+            filtered = self._categories_store.get_log_names_for(cat)
+            cell.set_property('model', filtered)
+            cell.set_property('text', model.get_value(iter, 1))

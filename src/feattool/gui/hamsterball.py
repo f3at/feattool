@@ -260,7 +260,7 @@ class Details(gtk.TreeView):
     def _render_details(self, column, cell, model, iter, index):
         value = model.get_value(iter, index)
         cell.set_property('text', str(value))
-        cell.set_property('wrap-width', column.get_property('width'))
+        cell.set_property('editable', True)
         cell.set_property('wrap-mode', pango.WRAP_WORD)
 
     def _detail_cursor_changed(self, treeview):
