@@ -54,7 +54,7 @@ class TestGuiDriver(common.TestCase):
         ag2 = self.driver.find_agency(id)
         self.assertTrue(isinstance(ag2, agency.Agency))
         self.assertEqual(ag, ag2)
-        a = self.driver.find_agent(id)
+        a = yield self.driver.find_agent(id)
         self.assertTrue(isinstance(a, agency.AgencyAgent))
         self.assertTrue(isinstance(a.get_agent(), agent.BaseAgent))
         self.assertEqual(a, ag._agents[0])
