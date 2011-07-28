@@ -430,10 +430,13 @@ class JournalEntries(gtk.TreeView):
 
     def _render_time(self, column, cell, model, iter):
         value = model.get_value(iter, 9)
-        year, month, mmday, hour, min, sec, daw, yday, isdst = \
-              time.localtime(float(value))
-        formatted = "%s:%s:%s" % (hour, min, sec)
-        cell.set_property('text', formatted)
+        try:
+            year, month, mmday, hour, min, sec, daw, yday, isdst = \
+                  time.localtime(float(value))
+            formatted = "%s:%s:%s" % (hour, min, sec)
+            cell.set_property('text', formatted)
+        except TypeError:
+            cell.set_property('text', str(value))
 
     def _je_visible(self, model, iter):
         value = model.get_value(iter, 2)
@@ -484,6 +487,8 @@ class LogList(gtk.TreeView):
             col.set_cell_data_func(renderer, self._render, index)
             self.append_column(col)
 
+        self.set_search_equal_func(self._search_equal)
+
     def _render(self, column, cell, model, iter, index):
         if index in [0, 3, 4, 5]:
             value = model.get_value(iter, index)
@@ -498,6 +503,9 @@ class LogList(gtk.TreeView):
         cell.set_property('editable', True)
         cell.set_property('wrap-width', column.get_property('width') - 10)
         cell.set_property('wrap-mode', pango.WRAP_WORD)
+
+    def _search_equal(self, model, column, key, iter):
+        return not (key in model.get(iter, column)[0])
 
 
 class FilterList(gtk.TreeView):
