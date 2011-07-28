@@ -188,6 +188,9 @@ class EntryDetails(gtk.TreeStore):
                                   time.localtime(float(self._get_value(9))))
         self._append_row(None, 'timestamp', timestamp)
         self._append_row(None, 'journal id', self._get_value(1))
+        error = self._get_value(12)
+        if error:
+            self._append_row(None, 'error', error)
 
     def _append_row(self, parent, key, value):
         row = self.append(parent, (key, value, ))
@@ -252,7 +255,7 @@ class JournalComponent(log.LogProxy, log.Logger):
             str, str, str, str, str, gobject.TYPE_PYOBJECT,
             gobject.TYPE_PYOBJECT, gobject.TYPE_PYOBJECT,
             gobject.TYPE_PYOBJECT, str, gobject.TYPE_PYOBJECT,
-            bool)
+            bool, gobject.TYPE_PYOBJECT)
 
         self.agents_store = AgentsStore()
         self.details_store = EntryDetails()
@@ -417,10 +420,11 @@ class JournalComponent(log.LogProxy, log.Logger):
                 try:
                     entry.apply()
                     enabled = True
+                    error = None
                 except replay.ReplayError as e:
                     msg = ("Encountered problem while replaying: \n %s" % e)
                     self.controller.display_error(msg)
-                    enabled = False
+                    error = e
                 except replay.NoHamsterballError:
                     enabled = False
                 row = self.je_store.append()
@@ -441,6 +445,7 @@ class JournalComponent(log.LogProxy, log.Logger):
                 if enabled:
                     self.je_store.set(row, 10, rep.snapshot_registry())
                 self.je_store.set(row, 11, enabled)
+                self.je_store.set(row, 12, error)
             agent_type = rep.get_agent_type()
             if agent_type:
                 self.agents_store.identify_agent(agent_id, agent_type)
@@ -449,7 +454,8 @@ class JournalComponent(log.LogProxy, log.Logger):
             msg = ("Journal import failed. \nProbably you are missing some "
                    "module. \nError message: \n%s" % (str(e), ))
             self.controller.display_error(msg)
-        self.controller.set_end_date(self.je_store[-1][9])
+        if len(self.je_store) > 0:
+            self.controller.set_end_date(self.je_store[-1][9])
 
     def _parse_sfx(self, row, journal_entry, rep):
         sfx = list(journal_entry.restore_side_effect(row, parse_args=True))

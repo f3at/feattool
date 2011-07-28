@@ -114,7 +114,8 @@ class Controller(log.Logger, log.LogProxy):
 
     def show_journal(self):
         iter = self.view.agent_list.get_marked_iter()
-        self.model.show_journal(iter)
+        if iter:
+            self.model.show_journal(iter)
 
     def show_entry_details(self, iter):
         self.model.parse_details_for(iter)
@@ -414,8 +415,11 @@ class JournalEntries(gtk.TreeView):
             weight = 400
         cell.set_property('weight', weight)
         enabled = model.get_value(iter, 11)
+        has_error = model.get_value(iter, 12) is not None
         if not enabled:
             color = gtk.gdk.Color(40000, 40000, 40000)
+        elif has_error:
+            color = gtk.gdk.Color(0xffff, 0, 0)
         else:
             color = gtk.gdk.Color(0, 0, 0)
         cell.set_property('foreground-gdk', color)
