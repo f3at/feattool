@@ -426,6 +426,7 @@ class JournalComponent(log.LogProxy, log.Logger):
                     self.controller.display_error(msg)
                     error = e
                 except replay.NoHamsterballError:
+                    error = None
                     enabled = False
                 row = self.je_store.append()
                 self.je_store.set(row, 0, entry.agent_id)
