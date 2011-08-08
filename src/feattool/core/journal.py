@@ -11,6 +11,7 @@ from zope.interface import classProvides
 from feat import everything
 from feat.common import log, defer, reflect
 from feat.agencies import journaler, replay
+from feat.agents.base.agent import registry_lookup
 from feat.agents.base.replay import resolve_function
 
 from feattool.core import component
@@ -18,7 +19,7 @@ from feattool.gui import journal, hamsterball
 
 from feat.interface.log import LogLevel
 
-from feattool.interfaces import *
+from feattool.interfaces import IGuiComponent
 
 
 class AgentsStore(gtk.ListStore):
@@ -42,8 +43,8 @@ class LogsStore(gtk.ListStore):
     def parse_result(self, result):
         '''
         result should be list of tuples with the format:
-        (message, timestamp, category, log_name, file_path, line_num, timestamp),
-        which is the result of SqliteWriter.get_log_entries.
+        (message, timestamp, category, log_name, file_path, line_num,
+        timestamp), which is the result of SqliteWriter.get_log_entries.
         '''
         self.clear()
         for row in result:
@@ -322,7 +323,8 @@ class JournalComponent(log.LogProxy, log.Logger):
             names_store.append()
             for name in names:
                 names_store.append((name, ))
-                self.agents_store.identify_agent(name, category)
+                if registry_lookup(category):
+                    self.agents_store.identify_agent(name, category)
             self.log_categories.append((category, names_store))
         boundaries = yield jour.get_log_time_boundaries()
         if boundaries:
