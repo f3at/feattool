@@ -24,6 +24,7 @@ Requires:	python-twisted-core
 Requires:	python-twisted-web
 Requires:	python-feat
 Requires:	python-pydot
+Requires:	pygtksourceview2
 Provides:	%{name}
 
 %description
