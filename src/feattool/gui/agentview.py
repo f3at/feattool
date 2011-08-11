@@ -1,8 +1,8 @@
 import gtk
 
-from feat.agents.base import agent
+from feat.agents.base import registry
 
-COLUMNS = agent.registry
+COLUMNS = registry.registry
 
 
 def setup_menu(menu, menu_items):

@@ -5,7 +5,7 @@ from feat.simulation import driver
 from feat.common import manhole, defer
 
 from feat import everything
-from feat.agents.base.agent import registry
+from feat.agents.base.registry import registry_lookup
 from feat.agents.base import recipient
 
 
@@ -76,19 +76,16 @@ class GuiDriver(driver.Driver):
             self.filter_type.remove(type_)
 
     def _update_agent_filter(self):
-        agent_objects = [registry[t] for t in self.filter_type]
+        agent_objects = [registry_lookup(t) for t in self.filter_type]
         self.filter_id = []
 
         def is_in_filter(aa):
-            return len(
-                    filter(
-                        lambda f: isinstance(aa.get_agent(), f),
-                         agent_objects)) > 0
+            return type(aa.get_agent()) in agent_objects
 
         for agency in self._agencies:
-            self.filter_id += map(lambda a:\
-                        a.get_agent().get_descriptor().doc_id, \
-                        filter(is_in_filter, agency._agents))
+            self.filter_id += [x.get_agent_id()
+                               for x in agency._agents
+                               if is_in_filter(x)]
 
     def on_processed_callback(self, callback):
         self.callbacks.append(callback)
