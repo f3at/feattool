@@ -211,21 +211,11 @@ class EntryDetails(gtk.TreeStore):
     def _append_function_call(self, parent, function, args, kwargs, result):
         args = args and list(args) or list()
         kwargs = kwargs or dict()
+
         argspec = inspect.getargspec(function)
         defaults = argspec.defaults and list(argspec.defaults)
-        if argspec.args and argspec.args[0] == 'self':
-            argspec.args.pop(0)
-        if argspec.args and argspec.args[0] == 'state':
-            argspec.args.pop(0)
-        display_args = list(argspec.args)
-        if argspec.varargs:
-            display_args += ['*%s' % (argspec.varargs)]
-        if argspec.keywords:
-            display_args += ['**%s' % (argspec.keywords)]
+        text = reflect.formatted_function_name(function)
 
-        text = "%s(" % (function.__name__, )
-        text += ', '.join(display_args)
-        text += ')'
         call_row = self._append_row(parent, 'call', text)
         row = self._append_row(call_row, 'input', None)
         for arg in argspec.args:
