@@ -9,7 +9,7 @@ setup(name='feat-dev',
       platforms=['any'],
       package_dir={'': 'src'},
       packages=(find_packages(where='src')),
-      scripts=['bin/run.py'],
+      scripts=['bin/feattool'],
       package_data={'': ['src/feattool/data/ui/*.ui']},
       include_package_data=True)
 

@@ -14,18 +14,8 @@ Checking out
 git clone git@github.com:f3at/feattool.git
 
 
-Configuring
-===========
-
-Paste this file to ~/.config/feattool/settings.ini:
-
-[imports]
-feattool.core.simulation = True
-feattool.core.journal = True
-
-
 Running
 =======
 
 cd bin
-../env ./run.py
+../env ./feattool

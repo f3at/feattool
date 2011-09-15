@@ -39,7 +39,6 @@ CFLAGS="$RPM_OPT_FLAGS" %{__python} setup.py build
 %install
 rm -rf $RPM_BUILD_ROOT
 %{__python} setup.py install --skip-build --root=$RPM_BUILD_ROOT --record=INSTALLED_FILES
-%{__mv} $RPM_BUILD_ROOT/%_usr/bin/run.py $RPM_BUILD_ROOT/%_usr/bin/feattool
 
 install -m 644 src/feattool/data/ui/*.ui \
      $RPM_BUILD_ROOT%{python_sitelib}/feattool/data/ui

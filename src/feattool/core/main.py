@@ -25,7 +25,7 @@ from feat.common import log
 
 from feattool.gui import main, imports as imports_gui
 
-from feattool.core import imports, settings
+from feattool.core import imports, settings, simulation, journal
 from feattool.interfaces import *
 
 
