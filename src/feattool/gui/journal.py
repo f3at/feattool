@@ -130,13 +130,16 @@ class Controller(log.Logger, log.LogProxy):
         filechooser.connect('response', self._choose_jourfile_response)
         filechooser.show_all()
 
+    def choose_postgres(self):
+        chooser = ChoosePostgres(self.view.window)
+        chooser.connect('response', self._choose_postgres_response)
+        chooser.show_all()
+
     def open_imports_manager(self):
         self.model.main.show_imports_manager()
 
     def show_journal(self):
-        iter = self.view.agent_list.get_marked_iter()
-        if iter:
-            self.model.show_journal(iter)
+        self.model.show_journal()
 
     def show_entry_details(self, iter):
         self.model.parse_details_for(iter)
@@ -187,6 +190,38 @@ class Controller(log.Logger, log.LogProxy):
         if response_id == gtk.RESPONSE_OK:
             self.model.load_jourfile(selected[0])
 
+    def _choose_postgres_response(self, dialog, response_id):
+        if response_id == gtk.RESPONSE_OK:
+            credentials = dialog.get_credentials()
+            self.model.postgres_connect(credentials)
+        dialog.destroy()
+
+
+class ChoosePostgres(gtk.Dialog):
+
+    def __init__(self, parent):
+        gtk.Dialog.__init__(self, "Choose postgres server", parent,
+                            gtk.DIALOG_MODAL | gtk.DIALOG_DESTROY_WITH_PARENT,
+                            buttons=(gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL,
+                                     gtk.STOCK_OPEN, gtk.RESPONSE_OK))
+        fields = [('host', ''), ('database', 'feat'),
+                  ('user', ''), ('password', '')]
+        self._entries = dict()
+        for name, default in fields:
+            hbox = gtk.HBox()
+            self.vbox.pack_start(hbox)
+            label = gtk.Label("%s: " % (name.capitalize(), ))
+            label.set_width_chars(12)
+            hbox.pack_start(label)
+            field = gtk.Entry()
+            field.set_text(str(default))
+            self._entries[name] = field
+            hbox.pack_start(field)
+
+    def get_credentials(self):
+        return dict([(key, entry.get_text())
+                     for key, entry in self._entries.items()])
+
 
 class MainWindow(log.Logger):
     """
@@ -225,6 +260,9 @@ class MainWindow(log.Logger):
     def _setup_menu(self):
         action = self.builder.get_object('choose_jourfile')
         action.connect('activate', lambda _: self.controller.choose_jourfile())
+
+        action = self.builder.get_object('postgres_connect')
+        action.connect('activate', lambda _: self.controller.choose_postgres())
 
         action = self.builder.get_object('quit_menuitem')
         action.connect('activate', self._on_destroy)
@@ -326,7 +364,6 @@ class AgentList(gtk.TreeView):
     def __init__(self, model=None):
         gtk.TreeView.__init__(self, model)
         self._setup_columns()
-        self._marked = None
 
     def _setup_columns(self):
         renderer = gtk.CellRendererText()
@@ -365,11 +402,8 @@ class AgentList(gtk.TreeView):
         val = not val
         model.set(iter, 1, val)
         param = val and iter or None
-        self._marked = param
-        self.emit('agent-marked', param)
 
-    def get_marked_iter(self):
-        return self._marked
+        self.emit('agent-marked', param)
 
     def _render_agent_entry(self, column, cell, model, iter, index):
         value = model.get_value(iter, index)

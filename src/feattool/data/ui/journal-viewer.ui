@@ -35,6 +35,15 @@
                       </object>
                     </child>
                     <child>
+                      <object class="GtkImageMenuItem" id="postgres_connect">
+                        <property name="label">Connect to postgres</property>
+                        <property name="visible">True</property>
+                        <property name="related_action">postgres_connec</property>
+                        <property name="image">image2</property>
+                        <property name="use_stock">False</property>
+                      </object>
+                    </child>
+                    <child>
                       <object class="GtkSeparatorMenuItem" id="separatormenuitem1">
                         <property name="visible">True</property>
                       </object>
@@ -583,5 +592,13 @@
   <object class="GtkImage" id="image1">
     <property name="visible">True</property>
     <property name="stock">gtk-clear</property>
+  </object>
+  <object class="GtkAction" id="postgres_connec">
+    <property name="label">Connect to postgres</property>
+    <property name="stock_id">gtk-connect</property>
+  </object>
+  <object class="GtkImage" id="image2">
+    <property name="visible">True</property>
+    <property name="stock">gtk-connect</property>
   </object>
 </interface>

@@ -30,7 +30,7 @@ import inspect
 from zope.interface import classProvides
 
 from feat import everything
-from feat.common import log, defer, reflect
+from feat.common import log, defer, reflect, error
 from feat.agencies import journaler, replay
 from feat.agents.base.agent import registry_lookup
 from feat.agents.base.replay import resolve_function
@@ -54,6 +54,11 @@ class AgentsStore(gtk.ListStore):
             if row[0] == agent_id:
                 row[4] = agent_name
 
+    def get_selected_history(self):
+        for row in self:
+            if row[1]:
+                return row[3]
+
 
 class LogsStore(gtk.ListStore):
 
@@ -69,8 +74,13 @@ class LogsStore(gtk.ListStore):
         '''
         self.clear()
         for row in result:
-            (message, level, category, log_name, file_path,
-             line_num, timestamp) = row
+            message = row['message']
+            level = row['level']
+            category = row['category']
+            log_name = row['log_name']
+            file_path = row['file_path']
+            line_num = row['line_num']
+            timestamp = row['timestamp']
 
             self.append((message, timestamp, file_path,
                          LogLevel[level].name, category, log_name, line_num))
@@ -210,9 +220,9 @@ class EntryDetails(gtk.TreeStore):
                                   time.localtime(float(self._get_value(9))))
         self._append_row(None, 'timestamp', timestamp)
         self._append_row(None, 'journal id', self._get_value(1))
-        error = self._get_value(12)
-        if error:
-            self._append_row(None, 'error', error)
+        error_ = self._get_value(12)
+        if error_:
+            self._append_row(None, 'error', error_)
 
     def _append_row(self, parent, key, value):
         row = self.append(parent, (key, value, ))
@@ -261,7 +271,7 @@ class JournalComponent(log.LogProxy, log.Logger):
         log.LogProxy.__init__(self, main)
 
         self.main = main
-        self._jourwriter = None
+        self._reader = None
 
         self.je_store = gtk.ListStore(
             str, str, str, str, str, gobject.TYPE_PYOBJECT,
@@ -312,17 +322,41 @@ class JournalComponent(log.LogProxy, log.Logger):
     def load_jourfile(self, filename):
         if not os.path.exists(filename):
             raise RuntimeError("File %r doesn't exist!" % (filename, ))
-        self._jourwriter = journaler.SqliteWriter(self, filename=filename)
+        reader = journaler.SqliteWriter(self, filename=filename)
+        return self._initiate_reader(reader)
 
-        d = self._jourwriter.initiate()
-        d.addCallback(lambda _: self._jourwriter.get_histories())
+    def postgres_connect(self, cred):
+        self.log("postgres_connect() called with credentials %r")
+        reader = journaler.PostgresReader(
+            self,
+            host=cred.get('host', 'localhost'),
+            database=cred['database'],
+            user=cred['user'],
+            password=cred['password'])
+        return self._initiate_reader(reader)
+
+    def _initiate_reader(self, reader):
+        old_reader = self._reader
+        self._reader = reader
+        d = defer.succeed(None)
+        if old_reader:
+            d.addCallback(defer.drop_param, reader.close)
+        d.addCallback(defer.drop_param, self._reader.initiate)
+        d.addCallback(defer.drop_param, self._reader.get_histories)
         d.addCallback(self._got_histories)
         d.addCallback(defer.drop_param, self._load_log_categories)
+        d.addErrback(self._connect_error_handler)
         return d
+
+    def _connect_error_handler(self, fail):
+        self._reader = None
+        error.handle_failure(self, fail, "Failed connecting.")
+        msg = error.get_failure_message(fail)
+        self.controller.display_error(msg)
 
     @defer.inlineCallbacks
     def _load_log_categories(self):
-        jour = self.get_journaler()
+        jour = self._reader
         if jour is None:
             return
         self.log_categories.clear()
@@ -346,31 +380,23 @@ class JournalComponent(log.LogProxy, log.Logger):
 
     @defer.inlineCallbacks
     def query_log(self):
-        jour = self.get_journaler()
         start_date = self.controller.log_start_date.get_current()
         end_date = self.controller.log_end_date.get_current()
 
-        if jour is None:
+        if self._reader is None:
             return
         self.logs_store.clear()
-        logs = yield jour.get_log_entries(
+        logs = yield self._reader.get_log_entries(
             start_date=start_date or None,
             end_date=end_date or None,
             filters=self.filters_store.get_filters_for_query())
         self.logs_store.parse_result(logs)
 
-    def get_journaler(self):
-        return self._jourwriter
-
-    def show_journal(self, iter):
-        '''
-        @param iter: TreeIter point to the row in self.agents_store
-        to be displayed
-        '''
+    def show_journal(self):
         self.details_store.clear()
         self.source_buffer.set_text('')
-        if iter:
-            history = self.agents_store.get_value(iter, 3)
+        history = self.agents_store.get_selected_history()
+        if history:
             return self._show_history(history)
         else:
             self.je_store.clear()
@@ -378,7 +404,7 @@ class JournalComponent(log.LogProxy, log.Logger):
     def _show_history(self, history):
         d = defer.succeed(None)
         d.addCallback(defer.drop_result,
-                      self._jourwriter.get_entries, history,
+                      self._reader.get_entries, history,
                       start_date=self.controller.get_start_date(),
                       limit=self.controller.get_limit())
         d.addCallback(self._parse_history, history.agent_id)
