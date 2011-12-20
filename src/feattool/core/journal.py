@@ -89,20 +89,21 @@ class LogsStore(gtk.ListStore):
 class FiltersStore(gtk.ListStore):
 
     def __init__(self):
-        # category, log_name, level
-        gtk.ListStore.__init__(self, str, str, gobject.TYPE_INT)
+        # category, log_name, level, hostname
+        gtk.ListStore.__init__(self, str, str, str, gobject.TYPE_INT)
 
     def get_filters_for_query(self):
-        # IMPLEMENT ME
         resp = list()
         for row in self:
-            if row[2] is None:
+            if row[3] is None:
                 continue
-            row_res = dict(level=row[2])
+            row_res = dict(level=row[3])
             if row[0] is not None:
-                row_res['category'] = row[0]
+                row_res['hostname'] = row[0]
             if row[1] is not None:
-                row_res['name'] = row[1]
+                row_res['category'] = row[1]
+            if row[2] is not None:
+                row_res['name'] = row[2]
             resp.append(row_res)
         return resp
 
@@ -115,6 +116,17 @@ class LogCategoriesStore(gtk.ListStore):
     def get_log_names_for(self, category):
         for row in self:
             if row[0] == category:
+                return row[1]
+
+
+class LogHostnamesStore(gtk.ListStore):
+
+    def __init__(self):
+        gtk.ListStore.__init__(self, str, LogCategoriesStore)
+
+    def get_categories_for(self, hostname):
+        for row in self:
+            if row[0] == hostname:
                 return row[1]
 
 
@@ -285,7 +297,7 @@ class JournalComponent(log.LogProxy, log.Logger):
         self.hamsterball = hamsterball.Model()
         self.logs_store = LogsStore()
         self.filters_store = FiltersStore()
-        self.log_categories = LogCategoriesStore()
+        self.log_hostnames = LogHostnamesStore()
 
         manager = gtksourceview2.LanguageManager()
         lang = manager.get_language('python')
@@ -295,7 +307,7 @@ class JournalComponent(log.LogProxy, log.Logger):
             self, self.je_store, self.agents_store,
             self.details_store, self.source_buffer,
             self.hamsterball, self.logs_store,
-            self.filters_store, self.log_categories)
+            self.filters_store, self.log_hostnames)
 
     def finished(self):
         '''
@@ -344,7 +356,7 @@ class JournalComponent(log.LogProxy, log.Logger):
         d.addCallback(defer.drop_param, self._reader.initiate)
         d.addCallback(defer.drop_param, self._reader.get_histories)
         d.addCallback(self._got_histories)
-        d.addCallback(defer.drop_param, self._load_log_categories)
+        d.addCallback(defer.drop_param, self._load_log_data)
         d.addErrback(self._connect_error_handler)
         return d
 
@@ -355,13 +367,32 @@ class JournalComponent(log.LogProxy, log.Logger):
         self.controller.display_error(msg)
 
     @defer.inlineCallbacks
-    def _load_log_categories(self):
+    def _load_log_data(self):
         jour = self._reader
         if jour is None:
             return
-        self.log_categories.clear()
-        self.log_categories.append()
-        categories = yield jour.get_log_categories()
+
+        self.log_hostnames.clear()
+
+        hostnames = yield jour.get_log_hostnames()
+        for hostname in [None] + hostnames:
+            categories_store = yield self._load_log_categories(hostname)
+            self.log_hostnames.append((hostname, categories_store))
+
+        boundaries = yield jour.get_log_time_boundaries()
+        if boundaries:
+            start, end = boundaries
+            self.controller.log_start_date.set_current(start)
+            self.controller.set_start_date(start)
+            self.controller.log_end_date.set_current(end)
+
+    @defer.inlineCallbacks
+    def _load_log_categories(self, hostname):
+        jour = self._reader
+
+        log_categories = LogCategoriesStore()
+        log_categories.append()
+        categories = yield jour.get_log_categories(hostname=hostname)
         for category in categories:
             names = yield jour.get_log_names(category)
             names_store = gtk.ListStore(str)
@@ -370,13 +401,8 @@ class JournalComponent(log.LogProxy, log.Logger):
                 names_store.append((name, ))
                 if registry_lookup(category):
                     self.agents_store.identify_agent(name, category)
-            self.log_categories.append((category, names_store))
-        boundaries = yield jour.get_log_time_boundaries()
-        if boundaries:
-            start, end = boundaries
-            self.controller.log_start_date.set_current(start)
-            self.controller.set_start_date(start)
-            self.controller.log_end_date.set_current(end)
+            log_categories.append((category, names_store))
+        defer.returnValue(log_categories)
 
     @defer.inlineCallbacks
     def query_log(self):
@@ -435,7 +461,7 @@ class JournalComponent(log.LogProxy, log.Logger):
         self.hamsterball.clear()
         self.logs_store.clear()
         self.filters_store.clear()
-        self.log_categories.clear()
+        self.log_hostnames.clear()
 
     ### private ###
 

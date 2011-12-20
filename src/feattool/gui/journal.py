@@ -41,7 +41,7 @@ class Controller(log.Logger, log.LogProxy):
 
     def __init__(self, model, journal_entries, agent_list,
                  entry_details, code_preview, hamsterball,
-                 logs_store, filters_store, log_categories):
+                 logs_store, filters_store, log_hostnames):
         log.Logger.__init__(self, model)
         log.LogProxy.__init__(self, model)
 
@@ -54,7 +54,7 @@ class Controller(log.Logger, log.LogProxy):
         self.view = MainWindow(self, self.builder,
                                journal_entries, agent_list,
                                entry_details, code_preview, hamsterball,
-                               logs_store, filters_store, log_categories)
+                               logs_store, filters_store, log_hostnames)
         self.view.show()
 
         self._start_date = date.DateField(
@@ -145,7 +145,7 @@ class Controller(log.Logger, log.LogProxy):
         self.model.parse_details_for(iter)
 
     def add_filter(self):
-        self.view.filters_store.append((None, None, 5))
+        self.view.filters_store.append((None, None, None, 5))
 
     def remove_filter(self):
         path, focus = self.view.filter_list.get_cursor()
@@ -230,7 +230,7 @@ class MainWindow(log.Logger):
 
     def __init__(self, controller, builder, journal_entries_store,
                  agents_store, entry_details, code_preview, hamsterball,
-                 logs_store, filters_store, log_categories):
+                 logs_store, filters_store, log_hostnames):
         log.Logger.__init__(self, controller)
 
         self.controller = controller
@@ -243,7 +243,7 @@ class MainWindow(log.Logger):
         self.hamsterball = hamsterball
         self.logs_store = logs_store
         self.filters_store = filters_store
-        self.log_categories = log_categories
+        self.log_hostnames = log_hostnames
 
         self._setup_window()
         self._setup_menu()
@@ -340,7 +340,7 @@ class MainWindow(log.Logger):
         self.builder.get_object('logentries').add(self.log_list)
 
     def _setup_filters_list(self):
-        self.filter_list = FilterList(self.filters_store, self.log_categories)
+        self.filter_list = FilterList(self.filters_store, self.log_hostnames)
         self.filter_list.show_all()
         self.builder.get_object('categories').add(self.filter_list)
 
@@ -569,17 +569,18 @@ class LogList(gtk.TreeView):
 
 class FilterList(gtk.TreeView):
 
-    def __init__(self, model=None, categories=None):
+    def __init__(self, model=None, hostnames=None):
         gtk.TreeView.__init__(self, model)
 
         self._level_model = gtk.ListStore(gobject.TYPE_STRING,
                                           gobject.TYPE_INT)
-        self._categories_store = categories
+        self._hostnames_store = hostnames
 
         for level in LogLevel:
             self._level_model.append((level.name, int(level)))
 
-        columns = [("Category", 100),
+        columns = [("Hostname", 150),
+                   ("Category", 100),
                    ("Name", 100),
                    ("Level", 40, )]
         for (column, width), index in zip(columns, range(len(columns))):
@@ -594,9 +595,9 @@ class FilterList(gtk.TreeView):
 
     def _combo_changed(self, combo, path_string, new_iter, index):
         model = self.get_model()
-        if index == 2:
+        if index == 3:
             value = self._level_model[new_iter][1]
-        if index in [0, 1]:
+        if index in [0, 1, 2]:
             m = combo.get_property('model')
             value = m[new_iter][0]
         if model:
@@ -607,15 +608,22 @@ class FilterList(gtk.TreeView):
         cell.set_property('text-column', 0)
         cell.set_property('has-entry', False)
 
-        if index == 2:
+        if index == 3:
             cell.set_property('model', self._level_model)
-            lvl = model.get_value(iter, 2)
+            lvl = model.get_value(iter, index)
             cell.set_property('text', self._level_model[lvl - 1][0])
         elif index == 0:
-            cell.set_property('model', self._categories_store)
-            cell.set_property('text', model.get_value(iter, 0))
+            cell.set_property('model', self._hostnames_store)
+            cell.set_property('text', model.get_value(iter, index))
         elif index == 1:
-            cat = model.get_value(iter, 0)
-            filtered = self._categories_store.get_log_names_for(cat)
+            hostname = model.get_value(iter, 0)
+            filtered = self._hostnames_store.get_categories_for(hostname)
             cell.set_property('model', filtered)
-            cell.set_property('text', model.get_value(iter, 1))
+            cell.set_property('text', model.get_value(iter, index))
+        elif index == 2:
+            hostname = model.get_value(iter, 0)
+            categories = self._hostnames_store.get_categories_for(hostname)
+            cat = model.get_value(iter, 1)
+            filtered = categories.get_log_names_for(cat)
+            cell.set_property('model', filtered)
+            cell.set_property('text', model.get_value(iter, index))
