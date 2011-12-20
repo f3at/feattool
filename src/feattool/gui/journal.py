@@ -375,20 +375,15 @@ class AgentList(gtk.TreeView):
         col.add_attribute(toggle_renderer, 'active', 1)
         self.append_column(col)
 
-        col = gtk.TreeViewColumn('Agent ID')
-        col.pack_start(renderer, True)
-        col.set_cell_data_func(renderer, self._render_agent_entry, 0)
-        self.append_column(col)
-
-        col = gtk.TreeViewColumn('I ID')
-        col.pack_start(renderer, True)
-        col.set_cell_data_func(renderer, self._render_agent_entry, 2)
-        self.append_column(col)
-
-        col = gtk.TreeViewColumn('Type')
-        col.pack_start(renderer, True)
-        col.set_cell_data_func(renderer, self._render_agent_entry, 4)
-        self.append_column(col)
+        columns = [('Agent ID', 0),
+                   ('I ID', 2),
+                   ('Type', 4),
+                   ('Hostname', 5)]
+        for name, index in columns:
+            col = gtk.TreeViewColumn(name)
+            col.pack_start(renderer, True)
+            col.set_cell_data_func(renderer, self._render_agent_entry, index)
+            self.append_column(col)
 
     def _agent_toggle_toggled(self, cell, path):
         model = self.get_model()

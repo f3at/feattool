@@ -46,8 +46,10 @@ from feattool.interfaces import IGuiComponent
 class AgentsStore(gtk.ListStore):
 
     def __init__(self):
-        gtk.ListStore.__init__(self, str, bool, int, gobject.TYPE_PYOBJECT,
-                               str)
+        # agent_id, selected, instance_id, History instance, agent_type,
+        # hostname
+        gtk.ListStore.__init__(
+            self, str, bool, int, gobject.TYPE_PYOBJECT, str, str)
 
     def identify_agent(self, agent_id, agent_name):
         for row in self:
@@ -474,6 +476,7 @@ class JournalComponent(log.LogProxy, log.Logger):
             self.agents_store.set(row, 2, history.instance_id)
             self.agents_store.set(row, 3, history)
             self.agents_store.set(row, 4, 'unknown yet')
+            self.agents_store.set(row, 5, history.hostname)
 
     def _parse_history(self, history, agent_id):
         self.je_store.clear()
