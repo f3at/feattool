@@ -68,17 +68,18 @@ class LogsStore(gtk.ListStore):
                                     gobject.TYPE_NONE, [])}
 
     def __init__(self):
-        # message, timestamp, file_path, level, category, log_name, line_num
-        gtk.ListStore.__init__(self, str, int, str, str, str, str, int)
+        # hostname, message, timestamp, file_path, level, category, log_name, line_num
+        gtk.ListStore.__init__(self, str, str, int, str, str, str, str, int)
 
     def parse_result(self, result):
         '''
         result should be list of tuples with the format:
-        (message, timestamp, category, log_name, file_path, line_num,
+        (hostname, message, timestamp, category, log_name, file_path, line_num,
         timestamp), which is the result of SqliteWriter.get_log_entries.
         '''
         self.clear()
         for row in result:
+            hostname = row['hostname']
             message = row['message']
             level = row['level']
             category = row['category']
@@ -87,7 +88,7 @@ class LogsStore(gtk.ListStore):
             line_num = row['line_num']
             timestamp = row['timestamp']
 
-            self.append((message, timestamp, file_path,
+            self.append((hostname, message, timestamp, file_path,
                          LogLevel[level].name, category, log_name, line_num))
         self.emit('full-update')
 

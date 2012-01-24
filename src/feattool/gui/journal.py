@@ -37,6 +37,16 @@ from feattool.core import settings
 
 from feat.interface.log import LogLevel
 
+class colors:
+    reset = '\033[0m'
+    default = '\033[2;37;40m'
+    where = '\033[1;30;40m'
+    levels = {"LOG": '\033[1;30;40m',
+              "DEBUG": '\033[2;37;40m',
+              "INFO": '\033[1;37;40m',
+              "WARN": '\033[1;33;40m',
+              "ERROR": '\033[1;31;40m'}
+
 
 class Controller(log.Logger, log.LogProxy):
     """
@@ -545,11 +555,11 @@ class LogList(terminal.VirtualTerminal):
             run.term_pid(self._pid)
         else:
             with file(self._buffer, 'w') as f:
-                for (message, timestamp, file_path, level,
+                for (hostname, message, timestamp, file_path, level,
                      category, log_name, line_num) in self.model:
-                    self._log_line(f, level, log_name, category,
+                    self._log_line(hostname, f, level, log_name, category,
                                    file_path, line_num, message)
-            self.run_command('less %s' % (self._buffer, ))
+            self.run_command('less -RS %s' % (self._buffer, ))
 
     def run_command_done_callback(self, term):
         terminal.VirtualTerminal.run_command_done_callback(self, term)
@@ -561,27 +571,48 @@ class LogList(terminal.VirtualTerminal):
         if self._pid:
             run.term_pid(self._pid)
 
-    def _log_line(self, output, level, object, category, file, line, message):
+    def _shorten(self, s, m):
+        if len(s) < m:
+            return s
+        return s[:((m-3)//2)] + "..." + s[-((m-3)//2)-((m-3)%2):]
+
+    def _log_line(self, hostname, output, level, object,
+                  category, file, line, message):
+
         o = ""
         if object:
-            o = '"' + object + '"'
+            o = self._shorten('"' + object + '"', 32)
+
+        if len(hostname) > 14:
+            hostname = ".".join(hostname.split('.')[:2])
+        if len(hostname) > 14:
+            hostname = hostname[:11] + "..."
 
         where = "(%s:%d)" % (file, line)
 
-        # level   pid     object   cat      time
-        # 5 + 1 + 7 + 1 + 32 + 1 + 17 + 1 + 15 == 80
-        output.write('%s [%5d] %-32s %-17s %-15s ' %
-                     (level.upper(),
+        color = colors.levels.get(level.upper(), colors.default)
+        output.write(color)
+
+        # hostname level   pid     object   cat      time
+        # 14 + 1 + 5 + 1 + 7 + 1 + 32 + 1 + 17 + 1 + 15 + 1 == 100
+        output.write('%-14s %-5s [%5d] %-32s %-17s %-19s ' %
+                     (hostname, level.upper(),
                       os.getpid(), o, category,
                       time.strftime("%b %d %H:%M:%S")))
 
+        # Padding the message
+        parts = message.strip(" \n").split("\n")
+        if len(parts) > 1:
+            message = parts[0] + "\n"
+            message += "\n".join(color+" "*100 + p for p in parts[1:])
+
         try:
-            output.write('%-4s %s %s\n' % ("", message, where))
+            output.write('%s %s%s\n' % (message, colors.where, where))
         except UnicodeEncodeError:
             # this can happen if message is a unicode object,
             # convert it back into a string using the UTF-8 encoding
             message = message.encode('UTF-8')
-            output.write('%-4s %s %s\n' % ("", message, where))
+            output.write('%s %s\n' % (message, where))
 
 
 class FilterList(gtk.TreeView):
