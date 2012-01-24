@@ -64,6 +64,9 @@ class AgentsStore(gtk.ListStore):
 
 class LogsStore(gtk.ListStore):
 
+    __gsignals__ = {"full-update": (gobject.SIGNAL_RUN_LAST,\
+                                    gobject.TYPE_NONE, [])}
+
     def __init__(self):
         # message, timestamp, file_path, level, category, log_name, line_num
         gtk.ListStore.__init__(self, str, int, str, str, str, str, int)
@@ -86,6 +89,7 @@ class LogsStore(gtk.ListStore):
 
             self.append((message, timestamp, file_path,
                          LogLevel[level].name, category, log_name, line_num))
+        self.emit('full-update')
 
 
 class FiltersStore(gtk.ListStore):

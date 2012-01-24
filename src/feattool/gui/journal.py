@@ -19,16 +19,20 @@
 # See "LICENSE.GPL" in the source distribution for more information.
 
 # Headers in this file shall remain intact.
+import os
 import time
 import pango
 import gtksourceview2
 import gobject
 import gtk
 
-from feat.common import log, first
+from twisted.internet import reactor
+
+from feat.common import log, first, run
+from feat.extern.log import log as xlog
 
 from feattool import data
-from feattool.gui import hamsterball, date
+from feattool.gui import hamsterball, date, terminal
 from feattool.core import settings
 
 from feat.interface.log import LogLevel
@@ -349,6 +353,7 @@ class MainWindow(log.Logger):
         self.entry_details.expand_all()
 
     def _on_destroy(self, window):
+        self.log_list.destroy()
         self.window.hide_all()
         self.controller.quit()
 
@@ -521,45 +526,62 @@ class EntryDetails(gtk.TreeView):
         cell.set_property('wrap-mode', pango.WRAP_WORD)
 
 
-class LogList(gtk.TreeView):
+class LogList(terminal.VirtualTerminal):
 
     def __init__(self, model=None):
-        gtk.TreeView.__init__(self, model)
+        terminal.VirtualTerminal.__init__(self)
+        self.model = model
+        self.model.connect('full_update', self._update_view)
+        self._buffer = '/tmp/feattool_log_widget.tmp'
+        if os.path.exists(self._buffer):
+            os.remove(self._buffer)
+        self._should_restart = True
 
-        renderer = gtk.CellRendererText()
-        columns = [("Message", 600),
-                   ("Timestamp", 100),
-                   ("File path", 150),
-                   ("Level", 40, ),
-                   ("Log category", 100),
-                   ("Log name", 100)]
-        for (column, width), index in zip(columns, range(len(columns))):
-            col = gtk.TreeViewColumn(column)
-            col.set_resizable(True)
-            col.set_min_width(width)
-            col.pack_start(renderer, True)
-            col.set_cell_data_func(renderer, self._render, index)
-            self.append_column(col)
+    def _update_view(self, model):
+        self._run_less()
 
-        self.set_search_equal_func(self._search_equal)
+    def _run_less(self):
+        if self._pid:
+            run.term_pid(self._pid)
+        else:
+            with file(self._buffer, 'w') as f:
+                for (message, timestamp, file_path, level,
+                     category, log_name, line_num) in self.model:
+                    self._log_line(f, level, log_name, category,
+                                   file_path, line_num, message)
+            self.run_command('less %s' % (self._buffer, ))
 
-    def _render(self, column, cell, model, iter, index):
-        if index in [0, 3, 4, 5]:
-            value = model.get_value(iter, index)
-        elif index == 2:
-            value = "%s:%s" % (model.get_value(iter, 2),
-                               model.get_value(iter, 6))
-        elif index == 1:
-            value = time.strftime(
-                "%H:%M:%S", time.localtime(float(model.get_value(iter, 1))))
+    def run_command_done_callback(self, term):
+        terminal.VirtualTerminal.run_command_done_callback(self, term)
+        if self._should_restart:
+            self._run_less()
 
-        cell.set_property('text', value)
-        cell.set_property('editable', True)
-        cell.set_property('wrap-width', column.get_property('width') - 10)
-        cell.set_property('wrap-mode', pango.WRAP_WORD)
+    def destroy(self):
+        self._should_restart = False
+        if self._pid:
+            run.term_pid(self._pid)
 
-    def _search_equal(self, model, column, key, iter):
-        return not (key in model.get(iter, column)[0])
+    def _log_line(self, output, level, object, category, file, line, message):
+        o = ""
+        if object:
+            o = '"' + object + '"'
+
+        where = "(%s:%d)" % (file, line)
+
+        # level   pid     object   cat      time
+        # 5 + 1 + 7 + 1 + 32 + 1 + 17 + 1 + 15 == 80
+        output.write('%s [%5d] %-32s %-17s %-15s ' %
+                     (level.upper(),
+                      os.getpid(), o, category,
+                      time.strftime("%b %d %H:%M:%S")))
+
+        try:
+            output.write('%-4s %s %s\n' % ("", message, where))
+        except UnicodeEncodeError:
+            # this can happen if message is a unicode object,
+            # convert it back into a string using the UTF-8 encoding
+            message = message.encode('UTF-8')
+            output.write('%-4s %s %s\n' % ("", message, where))
 
 
 class FilterList(gtk.TreeView):
