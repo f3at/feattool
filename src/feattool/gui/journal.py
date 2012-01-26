@@ -558,7 +558,7 @@ class LogList(terminal.VirtualTerminal):
                 for (hostname, message, timestamp, file_path, level,
                      category, log_name, line_num) in self.model:
                     self._log_line(hostname, f, level, log_name, category,
-                                   file_path, line_num, message)
+                                   file_path, line_num, message, timestamp)
             self.run_command('less -RS %s' % (self._buffer, ))
 
     def run_command_done_callback(self, term):
@@ -577,7 +577,7 @@ class LogList(terminal.VirtualTerminal):
         return s[:((m-3)//2)] + "..." + s[-((m-3)//2)-((m-3)%2):]
 
     def _log_line(self, hostname, output, level, object,
-                  category, file, line, message):
+                  category, file, line, message, timestamp):
 
         o = ""
         if object:
@@ -590,15 +590,19 @@ class LogList(terminal.VirtualTerminal):
 
         where = "(%s:%d)" % (file, line)
 
-        color = colors.levels.get(level.upper(), colors.default)
+        level = level.upper()
+        level = _level_lookup.get(level, level)
+
+        color = colors.levels.get(level, colors.default)
         output.write(color)
 
         # hostname level   pid     object   cat      time
         # 14 + 1 + 5 + 1 + 7 + 1 + 32 + 1 + 17 + 1 + 15 + 1 == 100
         output.write('%-14s %-5s [%5d] %-32s %-17s %-19s ' %
-                     (hostname, level.upper(),
+                     (hostname, level,
                       os.getpid(), o, category,
-                      time.strftime("%b %d %H:%M:%S")))
+                      time.strftime("%b %d %H:%M:%S",
+                                    time.localtime(timestamp))))
 
         # Padding the message
         parts = message.strip(" \n").split("\n")
@@ -675,3 +679,6 @@ class FilterList(gtk.TreeView):
             filtered = categories.get_log_names_for(cat)
             cell.set_property('model', filtered)
             cell.set_property('text', model.get_value(iter, index))
+
+
+_level_lookup = {"WARNING": "WARN"}
