@@ -44,6 +44,15 @@
                       </object>
                     </child>
                     <child>
+                      <object class="GtkImageMenuItem" id="refresh">
+                        <property name="visible">True</property>
+                        <property name="use_action_appearance">True</property>
+                        <property name="related_action">refresh_journaler</property>
+                        <property name="image">image3</property>
+                        <property name="use_stock">True</property>
+                      </object>
+                    </child>
+                    <child>
                       <object class="GtkSeparatorMenuItem" id="separatormenuitem1">
                         <property name="visible">True</property>
                       </object>
@@ -600,5 +609,9 @@
   <object class="GtkImage" id="image2">
     <property name="visible">True</property>
     <property name="stock">gtk-connect</property>
+  </object>
+  <object class="GtkAction" id="refresh_journaler">
+    <property name="label">Refresh</property>
+    <property name="stock_id">gtk-refresh</property>
   </object>
 </interface>

@@ -149,6 +149,9 @@ class Controller(log.Logger, log.LogProxy):
         chooser.connect('response', self._choose_postgres_response)
         chooser.show_all()
 
+    def refresh_journaler(self):
+        self.model.refresh_journaler()
+
     def open_imports_manager(self):
         self.model.main.show_imports_manager()
 
@@ -280,6 +283,9 @@ class MainWindow(log.Logger):
 
         action = self.builder.get_object('quit_menuitem')
         action.connect('activate', self._on_destroy)
+
+        action = self.builder.get_object('refresh_journaler')
+        action.connect('activate', lambda _: self.controller.refresh_journaler())
 
         menu = self.builder.get_object('imports_menuitem')
         menu.connect('activate',

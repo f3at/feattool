@@ -63,7 +63,7 @@ class DateField(object):
             return
         self.input.set_text(time.strftime(
             self.format,
-            time.localtime(float(self.get_current()))))
+            time.localtime(float(self.get_current() or 0))))
 
 
 class DatePicker(gtk.Dialog):

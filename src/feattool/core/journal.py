@@ -68,7 +68,8 @@ class LogsStore(gtk.ListStore):
                                     gobject.TYPE_NONE, [])}
 
     def __init__(self):
-        # hostname, message, timestamp, file_path, level, category, log_name, line_num
+        # hostname, message, timestamp, file_path, level, category,
+        # log_name, line_num
         gtk.ListStore.__init__(self, str, str, int, str, str, str, str, int)
 
     def parse_result(self, result):
@@ -354,6 +355,16 @@ class JournalComponent(log.LogProxy, log.Logger):
             password=cred['password'])
         return self._initiate_reader(reader)
 
+    def refresh_journaler(self):
+        if not self._reader:
+            self.controller.display_error("There is no reader at the moment")
+            return
+
+        d = self._reader.get_histories()
+        d.addCallback(self._got_histories)
+        d.addCallback(defer.drop_param, self._load_log_data)
+        return d
+
     def _initiate_reader(self, reader):
         old_reader = self._reader
         self._reader = reader
@@ -361,9 +372,7 @@ class JournalComponent(log.LogProxy, log.Logger):
         if old_reader:
             d.addCallback(defer.drop_param, reader.close)
         d.addCallback(defer.drop_param, self._reader.initiate)
-        d.addCallback(defer.drop_param, self._reader.get_histories)
-        d.addCallback(self._got_histories)
-        d.addCallback(defer.drop_param, self._load_log_data)
+        d.addCallback(defer.drop_param, self.refresh_journaler)
         d.addErrback(self._connect_error_handler)
         return d
 
