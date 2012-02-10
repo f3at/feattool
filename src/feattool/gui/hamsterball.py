@@ -19,6 +19,7 @@
 # See "LICENSE.GPL" in the source distribution for more information.
 
 # Headers in this file shall remain intact.
+import decimal
 import pango
 import types
 import gobject
@@ -100,7 +101,7 @@ class Model(gtk.ListStore):
                 self._append_row(parent_row, key, "Cyclic reference")
                 continue
             basic_types = (int, str, unicode, float, type, bool,
-                           types.NoneType)
+                           types.NoneType, decimal.Decimal)
             if isinstance(value, basic_types):
                 self._append_row(parent_row, key, value)
                 continue
