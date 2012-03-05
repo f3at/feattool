@@ -19,9 +19,11 @@
 # See "LICENSE.GPL" in the source distribution for more information.
 
 # Headers in this file shall remain intact.
+import types
 import gtk
 
-from feat.common import reflect, log
+from feat.common import reflect, log, error
+from feat.interface.application import IApplication
 
 
 class Imports(gtk.ListStore, log.Logger):
@@ -55,9 +57,16 @@ class Imports(gtk.ListStore, log.Logger):
 
         if force or auto:
             try:
-                reflect.named_module(canonical_name)
-            except ImportError as e:
-                self.error('Error importing: %r', e)
+                o = reflect.named_object(canonical_name)
+                if IApplication.providedBy(o):
+                    o.load()
+                elif isinstance(o, types.ModuleType):
+                    reflect.named_module(canonical_name)
+                else:
+                    raise TypeError("Uknown type of canonical name target: "
+                                    "%r -> %s" % (canonical_name, type(o)))
+            except Exception, e:
+                error.handle_exception('imports', e, 'Error importing')
 
     def remove(self, iter):
         canonical_name, auto = self._parse_row(iter)

@@ -29,11 +29,10 @@ import inspect
 
 from zope.interface import classProvides
 
-from feat import everything
 from feat.common import log, defer, reflect, error
 from feat.agencies import journaler, replay
-from feat.agents.base.agent import registry_lookup
 from feat.agents.base.replay import resolve_function
+from feat import applications
 
 from feattool.core import component
 from feattool.gui import journal, hamsterball
@@ -415,7 +414,7 @@ class JournalComponent(log.LogProxy, log.Logger):
             names_store.append()
             for name in names:
                 names_store.append((name, ))
-                if registry_lookup(category):
+                if applications.lookup_agent(category):
                     self.agents_store.identify_agent(name, category)
             log_categories.append((category, names_store))
         defer.returnValue(log_categories)

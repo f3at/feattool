@@ -25,9 +25,7 @@ import pydot
 from feat.simulation import driver
 from feat.common import manhole, defer
 
-from feat import everything
-from feat.agents.base.registry import registry_lookup
-from feat.agents.base import recipient
+from feat import applications
 
 
 class GuiParser(manhole.Parser):
@@ -97,7 +95,8 @@ class GuiDriver(driver.Driver):
             self.filter_type.remove(type_)
 
     def _update_agent_filter(self):
-        agent_objects = [registry_lookup(t) for t in self.filter_type]
+        agent_objects = [applications.lookup_agent(t)
+                         for t in self.filter_type]
         self.filter_id = []
 
         def is_in_filter(aa):

@@ -21,18 +21,16 @@
 # Headers in this file shall remain intact.
 import gtk
 
-from feat.agents.base import registry
-
-COLUMNS = registry.registry
+from feat import applications
 
 
 def setup_menu(menu, menu_items):
     items = []
-    for key in COLUMNS.keys():
-        items.append(key)
+    r = applications.get_agent_registry()
+    for agent_factory in r.itervalues():
+        items.append(agent_factory.descriptor_type)
     items.sort()
     for item in items:
-        col = COLUMNS[item]
         menu_item = gtk.CheckMenuItem(item.replace('_', ' '))
         menu_item.set_active(True)
         gtk.Menu.append(menu, menu_item)
