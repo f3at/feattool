@@ -27,7 +27,7 @@ import gtk
 import pydot
 
 from feattool.extern import xdot
-from feat.common import first
+from feat.common import first, error
 
 
 class Model(gtk.ListStore):
@@ -252,10 +252,14 @@ class HamsterballWidget(gtk.HPaned):
         rect = self._xdot.get_allocation()
         graph.obj_dict['attributes']['ratio'] = float(rect.height)/rect.width
         self._graph = graph
-        dotcode = graph.to_string()
-        self._xdot.set_dotcode(dotcode)
-        if self._xdot.graph.width:
-            self._xdot.zoom_to_fit()
+        try:
+            dotcode = graph.to_string()
+        except Exception as e:
+            error.handle_exception(None, e, 'Failed to generate xdot')
+        else:
+            self._xdot.set_dotcode(dotcode)
+            if self._xdot.graph.width:
+                self._xdot.zoom_to_fit()
 
 
 class Details(gtk.TreeView):

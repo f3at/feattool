@@ -504,7 +504,7 @@ class JournalComponent(log.LogProxy, log.Logger):
                     error = None
                 except replay.ReplayError as e:
                     msg = ("Encountered problem while replaying: \n %s" % e)
-                    self.controller.display_error(msg)
+                    # self.controller.display_error(msg)
                     error = e
                 except replay.NoHamsterballError:
                     error = None

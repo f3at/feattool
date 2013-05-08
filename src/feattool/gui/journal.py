@@ -272,7 +272,6 @@ class MainWindow(log.Logger):
         self.window.set_title('Journal viewer')
         self.window.connect('destroy', self._on_destroy)
         self.window.resize(1200, 1600)
-        self.window.maximize()
 
     def _setup_menu(self):
         action = self.builder.get_object('choose_jourfile')
